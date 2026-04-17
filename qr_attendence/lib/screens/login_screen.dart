@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:qr_attendence/screens/teacher_screen.dart';
 import '../services/auth_service.dart';
+import 'student_screen.dart';
+import 'teacher_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -49,6 +52,16 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   void login() async {
+    // Validation
+    if (emailController.text.trim().isEmpty) {
+      _showErrorSnackBar('Please enter your email');
+      return;
+    }
+    if (passwordController.text.trim().isEmpty) {
+      _showErrorSnackBar('Please enter your password');
+      return;
+    }
+
     setState(() => loading = true);
 
     try {
@@ -58,7 +71,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         passwordController.text.trim(),
       );
 
-      final uid = user!.uid;
+      if (user == null) {
+        throw Exception("Login failed. Please check your credentials.");
+      }
+
+      final uid = user.uid;
 
       // 2. GET USER DATA FROM FIRESTORE
       final doc = await FirebaseFirestore.instance
@@ -73,16 +90,46 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       }
 
       final role = data['role'];
+      final userName = data['name'] ?? 'User';
+      final userEmail = data['email'] ?? '';
 
-      // 3. ROLE-BASED NAVIGATION WITH ANIMATION
-      if (role == "teacher") {
-        Navigator.pushReplacementNamed(context, '/teacher');
-      } else {
-        Navigator.pushReplacementNamed(context, '/student');
+      // 3. ROLE-BASED NAVIGATION WITH MATERIALPAGEROUTE
+      if (mounted) {
+        if (role == "teacher") {
+          // Navigate to TeacherDashboard with user data
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TeacherScreen(
+                userId: uid,
+                userName: userName, userEmail: userEmail,
+                userData: data,
+                
+              ),
+            ),
+          );
+        } else if (role == "student") {
+          // Navigate to StudentScreen with user data
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => StudentScreen(
+                userId: uid,
+                userName: userName,
+                userEmail: userEmail,
+                userData: data,
+              ),
+            ),
+          );
+        } else {
+          throw Exception("Invalid role: $role");
+        }
       }
 
     } catch (e) {
-      _showErrorSnackBar(e.toString());
+      if (mounted) {
+        _showErrorSnackBar(e.toString());
+      }
     } finally {
       if (mounted) {
         setState(() => loading = false);
@@ -104,6 +151,92 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showForgotPasswordDialog() {
+    final forgotEmailController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.email, size: 50, color: Colors.blue),
+              const SizedBox(height: 16),
+              const Text(
+                'Reset Password',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Enter your email to receive reset instructions',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: forgotEmailController,
+                decoration: InputDecoration(
+                  hintText: 'Email',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final email = forgotEmailController.text.trim();
+                        if (email.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please enter your email')),
+                          );
+                          return;
+                        }
+                        
+                        try {
+                          await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Password reset email sent! Check your inbox.'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error: ${e.toString()}')),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1A237E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text('Send'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -231,10 +364,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () {
-                            // Add forgot password functionality
-                            _showForgotPasswordDialog();
-                          },
+                          onPressed: _showForgotPasswordDialog,
                           child: Text(
                             'Forgot Password?',
                             style: TextStyle(
@@ -379,74 +509,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           filled: true,
           fillColor: Colors.white,
           contentPadding: const EdgeInsets.symmetric(vertical: 15),
-        ),
-      ),
-    );
-  }
-
-  void _showForgotPasswordDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.email, size: 50, color: Colors.blue),
-              const SizedBox(height: 16),
-              const Text(
-                'Reset Password',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Enter your email to receive reset instructions',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: emailController,
-                decoration: InputDecoration(
-                  hintText: 'Email',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        // Add password reset logic
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Reset link sent to your email')),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1A237E),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: const Text('Send'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
         ),
       ),
     );

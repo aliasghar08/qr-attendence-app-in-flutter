@@ -6,7 +6,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firestore_service.dart';
 
 class StudentScreen extends StatefulWidget {
-  const StudentScreen({super.key});
+  final String userId;
+  final String userName;
+  final String userEmail;
+  final Map<String, dynamic>? userData;
+  
+  const StudentScreen({
+    super.key,
+    required this.userId,
+    required this.userName,
+    required this.userEmail,
+    this.userData,
+  });
 
   @override
   State<StudentScreen> createState() => _StudentScreenState();
@@ -23,7 +34,7 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
 
   final firestoreService = FirestoreService();
   
-  // Student info
+  // Student info - now using passed data
   String studentName = "";
   String studentRollNo = "";
   bool isLoading = true;
@@ -56,30 +67,39 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
   }
 
   Future<void> _loadStudentInfo() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
+    // Use passed data if available, otherwise fetch from Firestore
+    if (widget.userData != null && widget.userData!.isNotEmpty) {
+      setState(() {
+        studentName = widget.userData?['name'] ?? widget.userName;
+        studentRollNo = widget.userData?['rollNo'] ?? '';
+        isLoading = false;
+      });
+    } else {
+      // Fallback to fetching from Firestore if data not passed
       try {
         final doc = await FirebaseFirestore.instance
             .collection('users')
-            .doc(user.uid)
+            .doc(widget.userId)
             .get();
         
         if (doc.exists) {
           setState(() {
-            studentName = doc['name'] ?? 'Student';
+            studentName = doc['name'] ?? widget.userName;
             studentRollNo = doc['rollNo'] ?? '';
+            isLoading = false;
+          });
+        } else {
+          setState(() {
+            studentName = widget.userName;
             isLoading = false;
           });
         }
       } catch (e) {
         setState(() {
+          studentName = widget.userName;
           isLoading = false;
         });
       }
-    } else {
-      setState(() {
-        isLoading = false;
-      });
     }
   }
 
@@ -114,9 +134,26 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
           final className = decoded['className'] ?? 'Class';
           final lectureTitle = decoded['lectureTitle'] ?? 'Lecture';
           final timestamp = decoded['timestamp'];
+          final expiry = decoded['expiry'];
 
-          // Check if QR code is expired (e.g., valid for 15 minutes)
-          if (timestamp != null) {
+          // Check if QR code is expired
+          if (expiry != null) {
+            final expiryTime = DateTime.parse(expiry);
+            final now = DateTime.now();
+            
+            if (now.isAfter(expiryTime)) {
+              setState(() {
+                scannedData = "❌ QR Code Expired!\nPlease scan a valid QR code.";
+                isProcessing = false;
+              });
+              
+              Future.delayed(const Duration(seconds: 3), () {
+                if (mounted) resetScanner();
+              });
+              return;
+            }
+          } else if (timestamp != null) {
+            // Fallback: Check if QR code is older than 15 minutes
             final qrTime = DateTime.parse(timestamp);
             final now = DateTime.now();
             final difference = now.difference(qrTime);
@@ -127,7 +164,6 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                 isProcessing = false;
               });
               
-              // Auto reset after 3 seconds
               Future.delayed(const Duration(seconds: 3), () {
                 if (mounted) resetScanner();
               });
@@ -135,7 +171,7 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             }
           }
 
-          final studentId = user.uid;
+          final studentId = widget.userId; // Use passed userId
 
           // Check if already marked attendance for this lecture
           final existingAttendance = await firestoreService.checkExistingAttendance(
@@ -178,7 +214,6 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             isProcessing = false;
           });
           
-          // Auto reset after 3 seconds on error
           Future.delayed(const Duration(seconds: 3), () {
             if (mounted) resetScanner();
           });
@@ -214,7 +249,7 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Attendance marked for:'),
+            const Text('Attendance marked for:'),
             const SizedBox(height: 8),
             Text('📚 $className', style: const TextStyle(fontWeight: FontWeight.bold)),
             Text('📖 $lectureTitle', style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -224,6 +259,7 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             Text('Student: $studentName'),
             if (studentRollNo.isNotEmpty) Text('Roll No: $studentRollNo'),
             const SizedBox(height: 10),
+            Text('ID: ${widget.userId.substring(0, 8)}...'),
             Text('Time: ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}'),
           ],
         ),
@@ -314,6 +350,13 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        widget.userEmail,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 12,
                         ),
                       ),
                       if (studentRollNo.isNotEmpty)
