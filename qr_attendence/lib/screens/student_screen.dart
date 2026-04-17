@@ -40,6 +40,9 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
   String studentCourse = "";
   String studentBatch = "";
   String studentSemester = "";
+  String studentDepartment = "";
+  String studentPhone = "";
+  String studentDob = "";
   bool isLoading = true;
 
   @override
@@ -76,7 +79,10 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
         studentRollNo = widget.userData?['rollNo'] ?? '';
         studentCourse = widget.userData?['course'] ?? '';
         studentBatch = widget.userData?['batch'] ?? '';
-        studentSemester = widget.userData?['semester'] ?? '';
+        studentSemester = _normalizeSemesterForStorage(widget.userData?['semester'] ?? '');
+        studentDepartment = widget.userData?['department'] ?? '';
+        studentPhone = widget.userData?['phone'] ?? '';
+        studentDob = widget.userData?['dob'] ?? '';
         isLoading = false;
       });
     } else {
@@ -92,7 +98,10 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             studentRollNo = doc['rollNo'] ?? '';
             studentCourse = doc['course'] ?? '';
             studentBatch = doc['batch'] ?? '';
-            studentSemester = doc['semester'] ?? '';
+            studentSemester = _normalizeSemesterForStorage(doc['semester'] ?? '');
+            studentDepartment = doc['department'] ?? '';
+            studentPhone = doc['phone'] ?? '';
+            studentDob = doc['dob'] ?? '';
             isLoading = false;
           });
         } else {
@@ -108,6 +117,274 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
         });
       }
     }
+  }
+
+  String _normalizeSemesterForStorage(String semester) {
+    if (semester.isEmpty) return '';
+    
+    final numbers = RegExp(r'\d+').firstMatch(semester);
+    if (numbers != null) {
+      return 'Semester ${numbers.group(0)}';
+    }
+    
+    final romanMap = {
+      'I': '1', 'II': '2', 'III': '3', 'IV': '4',
+      'V': '5', 'VI': '6', 'VII': '7', 'VIII': '8'
+    };
+    for (var entry in romanMap.entries) {
+      if (semester.toUpperCase().contains(entry.key)) {
+        return 'Semester ${entry.value}';
+      }
+    }
+    
+    return semester;
+  }
+
+  String _normalizeSemester(String semesterStr) {
+    if (semesterStr.isEmpty) return '';
+    
+    final numbers = RegExp(r'\d+').allMatches(semesterStr);
+    if (numbers.isNotEmpty) {
+      return numbers.first.group(0)!;
+    }
+    
+    final romanMap = {
+      'I': '1', 'II': '2', 'III': '3', 'IV': '4',
+      'V': '5', 'VI': '6', 'VII': '7', 'VIII': '8'
+    };
+    for (var entry in romanMap.entries) {
+      if (semesterStr.toUpperCase().contains(entry.key)) {
+        return entry.value;
+      }
+    }
+    
+    return semesterStr;
+  }
+
+  bool _isCourseMatch(String studentCourse, String qrCourse) {
+    if (studentCourse.isEmpty || qrCourse.isEmpty) return true;
+    
+    final studentProgram = studentCourse.split(' ')[0].toUpperCase();
+    final qrProgram = qrCourse.split(' ')[0].toUpperCase();
+    
+    return studentProgram == qrProgram;
+  }
+
+  bool _isBatchMatch(String studentBatch, String qrBatch) {
+    if (studentBatch.isEmpty || qrBatch.isEmpty) return true;
+    
+    final studentYear = RegExp(r'\d{4}').firstMatch(studentBatch)?.group(0);
+    final qrYear = RegExp(r'\d{4}').firstMatch(qrBatch)?.group(0);
+    
+    if (studentYear != null && qrYear != null) {
+      return studentYear == qrYear;
+    }
+    
+    return studentBatch == qrBatch;
+  }
+
+  bool _isSemesterMatch(String studentSemester, String qrSemester) {
+    if (studentSemester.isEmpty || qrSemester.isEmpty) return true;
+    
+    final studentSemNum = _normalizeSemester(studentSemester);
+    final qrSemNum = _normalizeSemester(qrSemester);
+    
+    return studentSemNum == qrSemNum;
+  }
+
+  void _showStudentInfoDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.person, color: Color(0xFF1A237E), size: 28),
+            const SizedBox(width: 10),
+            const Text(
+              'Student Information',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1A237E),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1A237E), Color(0xFF283593)],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.school,
+                    size: 50,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildInfoRow(Icons.person, 'Full Name', studentName),
+              const Divider(),
+              _buildInfoRow(Icons.email, 'Email', widget.userEmail),
+              const Divider(),
+              if (studentRollNo.isNotEmpty)
+                _buildInfoRow(Icons.numbers, 'Roll Number', studentRollNo),
+              if (studentCourse.isNotEmpty)
+                _buildInfoRow(Icons.school, 'Program', studentCourse),
+              if (studentBatch.isNotEmpty)
+                _buildInfoRow(Icons.group, 'Batch', studentBatch),
+              if (studentSemester.isNotEmpty)
+                _buildInfoRow(Icons.grade, 'Semester', studentSemester),
+              if (studentDepartment.isNotEmpty)
+                _buildInfoRow(Icons.business, 'Department', studentDepartment),
+              if (studentPhone.isNotEmpty)
+                _buildInfoRow(Icons.phone, 'Phone', studentPhone),
+              if (studentDob.isNotEmpty)
+                _buildInfoRow(Icons.cake, 'Date of Birth', _formatDateString(studentDob)),
+              const Divider(),
+              _buildInfoRow(Icons.qr_code, 'Student ID', widget.userId.substring(0, 12) + '...'),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF1A237E),
+            ),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAttendanceHistory() async {
+    final attendanceRecords = await firestoreService.getStudentAttendance(widget.userId);
+    
+    if (attendanceRecords.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No attendance records found')),
+      );
+      return;
+    }
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Attendance History'),
+        content: Container(
+          width: double.maxFinite,
+          height: 400,
+          child: ListView.builder(
+            itemCount: attendanceRecords.length,
+            itemBuilder: (context, index) {
+              final record = attendanceRecords[index];
+              final data = record.data() as Map<String, dynamic>;
+              return ListTile(
+                leading: const Icon(Icons.check_circle, color: Colors.green),
+                title: Text(data['subject']?.toString() ?? 'Unknown Subject'),
+                subtitle: Text('Date: ${data['date']?.toString() ?? 'Unknown'} | Time: ${data['timeSlot']?.toString() ?? 'Unknown'}'),
+                trailing: Text(data['status']?.toString() ?? 'present'),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: const Color(0xFF1A237E)),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value.isEmpty ? 'Not provided' : value,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDateString(String dateString) {
+    if (dateString.isEmpty) return '';
+    try {
+      final date = DateTime.parse(dateString);
+      return '${date.day}/${date.month}/${date.year}';
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  void _showAlreadyMarkedDialog(String subject, String teacherName) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning, color: Colors.orange, size: 32),
+            const SizedBox(width: 10),
+            const Text('Already Marked!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('You have already marked attendance for:'),
+            const SizedBox(height: 8),
+            Text('📖 Subject: $subject', 
+                 style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text('👨‍🏫 Teacher: $teacherName'),
+            const SizedBox(height: 8),
+            const Text('Duplicate attendance is not allowed.', 
+                 style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   void onDetect(BarcodeCapture capture) async {
@@ -136,7 +413,6 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
         try {
           final decoded = jsonDecode(code);
           
-          // Extract all lecture information from QR code
           final course = decoded['course'] ?? '';
           final batch = decoded['batch'] ?? '';
           final semester = decoded['semester'] ?? '';
@@ -147,12 +423,8 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
           final teacherName = decoded['teacherName'] ?? '';
           final department = decoded['department'] ?? '';
           final lectureId = decoded['lectureId'] ?? '';
-          final timestamp = decoded['timestamp'] ?? '';
           final expiry = decoded['expiry'] ?? '';
-          final className = decoded['className'] ?? course;
-          final lectureTitle = decoded['lectureTitle'] ?? subject;
 
-          // Check if QR code is expired
           if (expiry != null && expiry.isNotEmpty) {
             final expiryTime = DateTime.parse(expiry);
             final now = DateTime.now();
@@ -170,11 +442,12 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             }
           }
 
-          // Verify if this lecture is for the student's course/batch/semester
           if (studentCourse.isNotEmpty && course.isNotEmpty) {
-            if (!studentCourse.contains(course.split(' ')[0])) {
+            if (!_isCourseMatch(studentCourse, course)) {
               setState(() {
-                scannedData = "❌ This lecture is not for your course!\nCourse: $course";
+                scannedData = "❌ This lecture is not for your course!\n"
+                             "Your Course: ${studentCourse.split(' ')[0]}\n"
+                             "Lecture Course: ${course.split(' ')[0]}";
                 isProcessing = false;
               });
               
@@ -185,11 +458,12 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             }
           }
 
-          // Check if student is in the correct batch
           if (studentBatch.isNotEmpty && batch.isNotEmpty) {
-            if (studentBatch != batch) {
+            if (!_isBatchMatch(studentBatch, batch)) {
               setState(() {
-                scannedData = "❌ This lecture is not for your batch!\nBatch: $batch";
+                scannedData = "❌ This lecture is not for your batch!\n"
+                             "Your Batch: $studentBatch\n"
+                             "Lecture Batch: $batch";
                 isProcessing = false;
               });
               
@@ -200,11 +474,12 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             }
           }
 
-          // Check if student is in the correct semester
           if (studentSemester.isNotEmpty && semester.isNotEmpty) {
-            if (studentSemester != semester) {
+            if (!_isSemesterMatch(studentSemester, semester)) {
               setState(() {
-                scannedData = "❌ This lecture is not for your semester!\nSemester: $semester";
+                scannedData = "❌ This lecture is not for your semester!\n"
+                             "Your Semester: $studentSemester\n"
+                             "Lecture Semester: $semester";
                 isProcessing = false;
               });
               
@@ -217,26 +492,29 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
 
           final studentId = widget.userId;
 
-          // Check if already marked attendance for this lecture
-          final existingAttendance = await firestoreService.checkExistingAttendance(
-            classId: lectureId,
-            lectureId: lectureId,
+          // Check if already marked attendance using the dedicated method
+          final hasAttended = await firestoreService.hasStudentAttendedLecture(
             studentId: studentId,
+            lectureId: lectureId,
           );
 
-          if (existingAttendance) {
+          if (hasAttended) {
             setState(() {
-              scannedData = "⚠️ Attendance already marked for this lecture!\nSubject: $subject";
+              scannedData = "⚠️ Attendance already marked!\n"
+                           "Student: $studentName\n"
+                           "Subject: $subject\n"
+                           "You have already marked attendance for this lecture.";
               isProcessing = false;
             });
             
-            Future.delayed(const Duration(seconds: 2), () {
+            _showAlreadyMarkedDialog(subject, teacherName);
+            
+            Future.delayed(const Duration(seconds: 3), () {
               if (mounted) resetScanner();
             });
             return;
           }
 
-          // Mark attendance with detailed information
           await firestoreService.markAttendance(
             classId: lectureId,
             lectureId: lectureId,
@@ -253,6 +531,9 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
               'department': department,
               'studentName': studentName,
               'studentRollNo': studentRollNo,
+              'studentCourse': studentCourse,
+              'studentBatch': studentBatch,
+              'studentSemester': studentSemester,
             },
           );
 
@@ -266,7 +547,6 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             isProcessing = false;
           });
 
-          // Show detailed success dialog
           _showSuccessDialog(
             course: course,
             batch: batch,
@@ -311,7 +591,6 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
     required String timeSlot,
     required String teacherName,
   }) {
-    // Format date for display
     String formattedDate = "Today";
     if (date.isNotEmpty) {
       try {
@@ -334,62 +613,64 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             const Text('Attendance Marked!'),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(10),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Lecture Details:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('📚 Course: ${course.split(' ')[0]}'),
+                    Text('📖 Subject: $subject'),
+                    Text('👨‍🏫 Teacher: $teacherName'),
+                    Text('👥 Batch: $batch | Semester: $semester'),
+                    Text('📅 Date: $formattedDate'),
+                    Text('⏰ Time: $timeSlot'),
+                  ],
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Lecture Details:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text('📚 Course: ${course.split(' ')[0]}'),
-                  Text('📖 Subject: $subject'),
-                  Text('👨‍🏫 Teacher: $teacherName'),
-                  Text('👥 Batch: $batch | Semester: $semester'),
-                  Text('📅 Date: $formattedDate'),
-                  Text('⏰ Time: $timeSlot'),
-                ],
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Student Details:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('👨‍🎓 Name: $studentName'),
+                    if (studentRollNo.isNotEmpty) Text('🎫 Roll No: $studentRollNo'),
+                    if (studentCourse.isNotEmpty) Text('📚 Program: $studentCourse'),
+                    if (studentBatch.isNotEmpty) Text('👥 Batch: $studentBatch'),
+                    if (studentSemester.isNotEmpty) Text('📖 Semester: $studentSemester'),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(10),
+              const SizedBox(height: 12),
+              Text(
+                'Time: ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Student Details:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text('👨‍🎓 Name: $studentName'),
-                  if (studentRollNo.isNotEmpty) Text('🎫 Roll No: $studentRollNo'),
-                  if (studentCourse.isNotEmpty) Text('📚 Program: $studentCourse'),
-                  if (studentBatch.isNotEmpty) Text('👥 Batch: $studentBatch'),
-                  if (studentSemester.isNotEmpty) Text('📖 Semester: $studentSemester'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Time: ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -415,6 +696,16 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
         elevation: 0,
         actions: [
           IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: _showAttendanceHistory,
+            tooltip: 'Attendance History',
+          ),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: _showStudentInfoDialog,
+            tooltip: 'Student Information',
+          ),
+          IconButton(
             icon: const Icon(Icons.qr_code_scanner),
             onPressed: () {
               resetScanner();
@@ -422,6 +713,7 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                 cameraController.start();
               });
             },
+            tooltip: 'Scan QR Code',
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -431,6 +723,7 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                 Navigator.pushReplacementNamed(context, '/login');
               }
             },
+            tooltip: 'Logout',
           ),
         ],
       ),
@@ -439,87 +732,94 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
           : Column(
               children: [
                 // Student Info Card
-                Container(
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF1A237E), Color(0xFF283593)],
+                GestureDetector(
+                  onTap: _showStudentInfoDialog,
+                  child: Container(
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1A237E), Color(0xFF283593)],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
                     ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          shape: BoxShape.circle,
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 30,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.person,
-                          color: Colors.white,
-                          size: 30,
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              studentName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              widget.userEmail,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
-                                fontSize: 12,
-                              ),
-                            ),
-                            if (studentRollNo.isNotEmpty)
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Text(
-                                'Roll No: $studentRollNo',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.8),
-                                  fontSize: 14,
+                                studentName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            if (studentCourse.isNotEmpty)
                               Text(
-                                studentCourse,
+                                widget.userEmail,
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.8),
                                   fontSize: 12,
                                 ),
                               ),
-                          ],
+                              if (studentRollNo.isNotEmpty)
+                                Text(
+                                  'Roll No: $studentRollNo',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.8),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              if (studentCourse.isNotEmpty)
+                                Text(
+                                  studentCourse,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.8),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.green,
-                          borderRadius: BorderRadius.circular(20),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            'Student',
+                            style: TextStyle(color: Colors.white, fontSize: 12),
+                          ),
                         ),
-                        child: const Text(
-                          'Student',
-                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        const Icon(
+                          Icons.chevron_right,
+                          color: Colors.white70,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 
@@ -567,7 +867,6 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                             controller: cameraController,
                             onDetect: onDetect,
                           ),
-                          // Scanner overlay guide
                           Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
@@ -676,74 +975,76 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                 // Status Card
                 Expanded(
                   flex: 2,
-                  child: Container(
-                    margin: const EdgeInsets.all(16),
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, -5),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        FadeTransition(
-                          opacity: _fadeAnimation,
-                          child: ScaleTransition(
-                            scale: _scaleAnimation,
-                            child: Icon(
-                              scannedData.contains('✅') 
-                                  ? Icons.check_circle 
-                                  : scannedData.contains('❌') || scannedData.contains('⚠️')
-                                      ? Icons.error_outline
-                                      : Icons.qr_code_scanner,
-                              size: 50,
-                              color: scannedData.contains('✅')
-                                  ? Colors.green
-                                  : scannedData.contains('❌') || scannedData.contains('⚠️')
-                                      ? Colors.red
-                                      : const Color(0xFF1A237E),
-                            ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, -5),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          scannedData,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: scannedData.contains('Successfully') 
-                                ? FontWeight.bold 
-                                : FontWeight.normal,
-                            color: scannedData.contains('✅')
-                                ? Colors.green.shade700
-                                : scannedData.contains('❌') || scannedData.contains('⚠️')
-                                    ? Colors.red.shade700
-                                    : Colors.grey.shade700,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        if (isScanned || scannedData.contains('❌') || scannedData.contains('⚠️'))
-                          ElevatedButton.icon(
-                            onPressed: resetScanner,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Scan Again'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1A237E),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          FadeTransition(
+                            opacity: _fadeAnimation,
+                            child: ScaleTransition(
+                              scale: _scaleAnimation,
+                              child: Icon(
+                                scannedData.contains('✅') 
+                                    ? Icons.check_circle 
+                                    : scannedData.contains('❌') || scannedData.contains('⚠️')
+                                        ? Icons.error_outline
+                                        : Icons.qr_code_scanner,
+                                size: 50,
+                                color: scannedData.contains('✅')
+                                    ? Colors.green
+                                    : scannedData.contains('❌') || scannedData.contains('⚠️')
+                                        ? Colors.red
+                                        : const Color(0xFF1A237E),
                               ),
                             ),
                           ),
-                      ],
+                          const SizedBox(height: 16),
+                          Text(
+                            scannedData,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: scannedData.contains('Successfully') 
+                                  ? FontWeight.bold 
+                                  : FontWeight.normal,
+                              color: scannedData.contains('✅')
+                                  ? Colors.green.shade700
+                                  : scannedData.contains('❌') || scannedData.contains('⚠️')
+                                      ? Colors.red.shade700
+                                      : Colors.grey.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          if (isScanned || scannedData.contains('❌') || scannedData.contains('⚠️'))
+                            ElevatedButton.icon(
+                              onPressed: resetScanner,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Scan Again'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF1A237E),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
