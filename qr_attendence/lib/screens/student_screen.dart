@@ -34,9 +34,12 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
 
   final firestoreService = FirestoreService();
   
-  // Student info - now using passed data
+  // Student info
   String studentName = "";
   String studentRollNo = "";
+  String studentCourse = "";
+  String studentBatch = "";
+  String studentSemester = "";
   bool isLoading = true;
 
   @override
@@ -67,15 +70,16 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
   }
 
   Future<void> _loadStudentInfo() async {
-    // Use passed data if available, otherwise fetch from Firestore
     if (widget.userData != null && widget.userData!.isNotEmpty) {
       setState(() {
         studentName = widget.userData?['name'] ?? widget.userName;
         studentRollNo = widget.userData?['rollNo'] ?? '';
+        studentCourse = widget.userData?['course'] ?? '';
+        studentBatch = widget.userData?['batch'] ?? '';
+        studentSemester = widget.userData?['semester'] ?? '';
         isLoading = false;
       });
     } else {
-      // Fallback to fetching from Firestore if data not passed
       try {
         final doc = await FirebaseFirestore.instance
             .collection('users')
@@ -86,6 +90,9 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
           setState(() {
             studentName = doc['name'] ?? widget.userName;
             studentRollNo = doc['rollNo'] ?? '';
+            studentCourse = doc['course'] ?? '';
+            studentBatch = doc['batch'] ?? '';
+            studentSemester = doc['semester'] ?? '';
             isLoading = false;
           });
         } else {
@@ -128,39 +135,31 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
 
         try {
           final decoded = jsonDecode(code);
-
-          final classId = decoded['classId'];
-          final lectureId = decoded['lectureId'];
-          final className = decoded['className'] ?? 'Class';
-          final lectureTitle = decoded['lectureTitle'] ?? 'Lecture';
-          final timestamp = decoded['timestamp'];
-          final expiry = decoded['expiry'];
+          
+          // Extract all lecture information from QR code
+          final course = decoded['course'] ?? '';
+          final batch = decoded['batch'] ?? '';
+          final semester = decoded['semester'] ?? '';
+          final subject = decoded['subject'] ?? '';
+          final date = decoded['date'] ?? '';
+          final timeSlot = decoded['timeSlot'] ?? '';
+          final teacherId = decoded['teacherId'] ?? '';
+          final teacherName = decoded['teacherName'] ?? '';
+          final department = decoded['department'] ?? '';
+          final lectureId = decoded['lectureId'] ?? '';
+          final timestamp = decoded['timestamp'] ?? '';
+          final expiry = decoded['expiry'] ?? '';
+          final className = decoded['className'] ?? course;
+          final lectureTitle = decoded['lectureTitle'] ?? subject;
 
           // Check if QR code is expired
-          if (expiry != null) {
+          if (expiry != null && expiry.isNotEmpty) {
             final expiryTime = DateTime.parse(expiry);
             final now = DateTime.now();
             
             if (now.isAfter(expiryTime)) {
               setState(() {
-                scannedData = "❌ QR Code Expired!\nPlease scan a valid QR code.";
-                isProcessing = false;
-              });
-              
-              Future.delayed(const Duration(seconds: 3), () {
-                if (mounted) resetScanner();
-              });
-              return;
-            }
-          } else if (timestamp != null) {
-            // Fallback: Check if QR code is older than 15 minutes
-            final qrTime = DateTime.parse(timestamp);
-            final now = DateTime.now();
-            final difference = now.difference(qrTime);
-            
-            if (difference.inMinutes > 15) {
-              setState(() {
-                scannedData = "❌ QR Code Expired!\nPlease scan a valid QR code.";
+                scannedData = "❌ QR Code Expired!\nThis QR code is no longer valid.";
                 isProcessing = false;
               });
               
@@ -171,18 +170,63 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             }
           }
 
-          final studentId = widget.userId; // Use passed userId
+          // Verify if this lecture is for the student's course/batch/semester
+          if (studentCourse.isNotEmpty && course.isNotEmpty) {
+            if (!studentCourse.contains(course.split(' ')[0])) {
+              setState(() {
+                scannedData = "❌ This lecture is not for your course!\nCourse: $course";
+                isProcessing = false;
+              });
+              
+              Future.delayed(const Duration(seconds: 3), () {
+                if (mounted) resetScanner();
+              });
+              return;
+            }
+          }
+
+          // Check if student is in the correct batch
+          if (studentBatch.isNotEmpty && batch.isNotEmpty) {
+            if (studentBatch != batch) {
+              setState(() {
+                scannedData = "❌ This lecture is not for your batch!\nBatch: $batch";
+                isProcessing = false;
+              });
+              
+              Future.delayed(const Duration(seconds: 3), () {
+                if (mounted) resetScanner();
+              });
+              return;
+            }
+          }
+
+          // Check if student is in the correct semester
+          if (studentSemester.isNotEmpty && semester.isNotEmpty) {
+            if (studentSemester != semester) {
+              setState(() {
+                scannedData = "❌ This lecture is not for your semester!\nSemester: $semester";
+                isProcessing = false;
+              });
+              
+              Future.delayed(const Duration(seconds: 3), () {
+                if (mounted) resetScanner();
+              });
+              return;
+            }
+          }
+
+          final studentId = widget.userId;
 
           // Check if already marked attendance for this lecture
           final existingAttendance = await firestoreService.checkExistingAttendance(
-            classId: classId,
+            classId: lectureId,
             lectureId: lectureId,
             studentId: studentId,
           );
 
           if (existingAttendance) {
             setState(() {
-              scannedData = "⚠️ Attendance already marked for this lecture!";
+              scannedData = "⚠️ Attendance already marked for this lecture!\nSubject: $subject";
               isProcessing = false;
             });
             
@@ -192,25 +236,51 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             return;
           }
 
-          // Mark attendance
+          // Mark attendance with detailed information
           await firestoreService.markAttendance(
-            classId: classId,
+            classId: lectureId,
             lectureId: lectureId,
             studentId: studentId,
+            additionalData: {
+              'course': course,
+              'batch': batch,
+              'semester': semester,
+              'subject': subject,
+              'date': date,
+              'timeSlot': timeSlot,
+              'teacherId': teacherId,
+              'teacherName': teacherName,
+              'department': department,
+              'studentName': studentName,
+              'studentRollNo': studentRollNo,
+            },
           );
 
           setState(() {
-            scannedData = "✅ Attendance Marked Successfully!\n📚 $className\n📖 $lectureTitle";
+            scannedData = "✅ Attendance Marked Successfully!\n"
+                         "📚 Course: ${course.split(' ')[0]}\n"
+                         "📖 Subject: $subject\n"
+                         "👨‍🏫 Teacher: $teacherName\n"
+                         "⏰ Time: $timeSlot";
             isScanned = true;
             isProcessing = false;
           });
 
-          // Show success dialog
-          _showSuccessDialog(className, lectureTitle);
+          // Show detailed success dialog
+          _showSuccessDialog(
+            course: course,
+            batch: batch,
+            semester: semester,
+            subject: subject,
+            date: date,
+            timeSlot: timeSlot,
+            teacherName: teacherName,
+          );
 
         } catch (e) {
+          print('Error processing QR: $e');
           setState(() {
-            scannedData = "❌ Error: ${e.toString().split(':').last}";
+            scannedData = "❌ Error: Invalid QR Code format";
             isProcessing = false;
           });
           
@@ -232,7 +302,26 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
     });
   }
 
-  void _showSuccessDialog(String className, String lectureTitle) {
+  void _showSuccessDialog({
+    required String course,
+    required String batch,
+    required String semester,
+    required String subject,
+    required String date,
+    required String timeSlot,
+    required String teacherName,
+  }) {
+    // Format date for display
+    String formattedDate = "Today";
+    if (date.isNotEmpty) {
+      try {
+        final dateTime = DateTime.parse(date);
+        formattedDate = '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+      } catch (e) {
+        formattedDate = date;
+      }
+    }
+    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -242,25 +331,64 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
           children: [
             const Icon(Icons.check_circle, color: Colors.green, size: 32),
             const SizedBox(width: 10),
-            const Text('Success!'),
+            const Text('Attendance Marked!'),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Attendance marked for:'),
-            const SizedBox(height: 8),
-            Text('📚 $className', style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text('📖 $lectureTitle', style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            const Divider(),
-            const SizedBox(height: 5),
-            Text('Student: $studentName'),
-            if (studentRollNo.isNotEmpty) Text('Roll No: $studentRollNo'),
-            const SizedBox(height: 10),
-            Text('ID: ${widget.userId.substring(0, 8)}...'),
-            Text('Time: ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}'),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Lecture Details:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('📚 Course: ${course.split(' ')[0]}'),
+                  Text('📖 Subject: $subject'),
+                  Text('👨‍🏫 Teacher: $teacherName'),
+                  Text('👥 Batch: $batch | Semester: $semester'),
+                  Text('📅 Date: $formattedDate'),
+                  Text('⏰ Time: $timeSlot'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Student Details:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('👨‍🎓 Name: $studentName'),
+                  if (studentRollNo.isNotEmpty) Text('🎫 Roll No: $studentRollNo'),
+                  if (studentCourse.isNotEmpty) Text('📚 Program: $studentCourse'),
+                  if (studentBatch.isNotEmpty) Text('👥 Batch: $studentBatch'),
+                  if (studentSemester.isNotEmpty) Text('📖 Semester: $studentSemester'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Time: ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            ),
           ],
         ),
         actions: [
@@ -306,311 +434,321 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Student Info Card
-          Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF1A237E), Color(0xFF283593)],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: Row(
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
               children: [
+                // Student Info Card
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1A237E), Color(0xFF283593)],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
                   ),
-                  child: const Icon(
-                    Icons.person,
-                    color: Colors.white,
-                    size: 30,
-                  ),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Text(
-                        isLoading ? "Loading..." : studentName,
-                        style: const TextStyle(
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.person,
                           color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                          size: 30,
                         ),
                       ),
-                      Text(
-                        widget.userEmail,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 12,
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              studentName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              widget.userEmail,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.8),
+                                fontSize: 12,
+                              ),
+                            ),
+                            if (studentRollNo.isNotEmpty)
+                              Text(
+                                'Roll No: $studentRollNo',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            if (studentCourse.isNotEmpty)
+                              Text(
+                                studentCourse,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                      if (studentRollNo.isNotEmpty)
-                        Text(
-                          'Roll No: $studentRollNo',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 14,
-                          ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          borderRadius: BorderRadius.circular(20),
                         ),
+                        child: const Text(
+                          'Student',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    'Student',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Scanner Section Title
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Icon(Icons.qr_code_scanner, color: const Color(0xFF1A237E)),
-                const SizedBox(width: 8),
-                const Text(
-                  'Scan QR Code',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A237E),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 10),
-          
-          // Scanner View
-          Expanded(
-            flex: 4,
-            child: Container(
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Stack(
-                  children: [
-                    MobileScanner(
-                      controller: cameraController,
-                      onDetect: onDetect,
-                    ),
-                    // Scanner overlay guide
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.5),
-                          width: 2,
+                
+                // Scanner Section Title
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Icon(Icons.qr_code_scanner, color: const Color(0xFF1A237E)),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Scan QR Code',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A237E),
                         ),
                       ),
-                      child: Center(
-                        child: Container(
-                          width: 200,
-                          height: 200,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Colors.white,
-                              width: 3,
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 10),
+                
+                // Scanner View
+                Expanded(
+                  flex: 4,
+                  child: Container(
+                    margin: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Stack(
+                        children: [
+                          MobileScanner(
+                            controller: cameraController,
+                            onDetect: onDetect,
+                          ),
+                          // Scanner overlay guide
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.5),
+                                width: 2,
+                              ),
                             ),
-                            borderRadius: BorderRadius.circular(10),
+                            child: Center(
+                              child: Container(
+                                width: 200,
+                                height: 200,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 3,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    Positioned(
+                                      top: 0,
+                                      left: 0,
+                                      child: Container(
+                                        width: 30,
+                                        height: 30,
+                                        decoration: const BoxDecoration(
+                                          border: Border(
+                                            top: BorderSide(color: Colors.white, width: 3),
+                                            left: BorderSide(color: Colors.white, width: 3),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 0,
+                                      right: 0,
+                                      child: Container(
+                                        width: 30,
+                                        height: 30,
+                                        decoration: const BoxDecoration(
+                                          border: Border(
+                                            top: BorderSide(color: Colors.white, width: 3),
+                                            right: BorderSide(color: Colors.white, width: 3),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 0,
+                                      left: 0,
+                                      child: Container(
+                                        width: 30,
+                                        height: 30,
+                                        decoration: const BoxDecoration(
+                                          border: Border(
+                                            bottom: BorderSide(color: Colors.white, width: 3),
+                                            left: BorderSide(color: Colors.white, width: 3),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      child: Container(
+                                        width: 30,
+                                        height: 30,
+                                        decoration: const BoxDecoration(
+                                          border: Border(
+                                            bottom: BorderSide(color: Colors.white, width: 3),
+                                            right: BorderSide(color: Colors.white, width: 3),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
-                          child: Stack(
-                            children: [
-                              Positioned(
-                                top: 0,
-                                left: 0,
-                                child: Container(
-                                  width: 30,
-                                  height: 30,
-                                  decoration: const BoxDecoration(
-                                    border: Border(
-                                      top: BorderSide(color: Colors.white, width: 3),
-                                      left: BorderSide(color: Colors.white, width: 3),
+                          if (isProcessing)
+                            Container(
+                              color: Colors.black.withOpacity(0.7),
+                              child: const Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(),
+                                    SizedBox(height: 16),
+                                    Text(
+                                      'Processing...',
+                                      style: TextStyle(color: Colors.white),
                                     ),
-                                  ),
+                                  ],
                                 ),
                               ),
-                              Positioned(
-                                top: 0,
-                                right: 0,
-                                child: Container(
-                                  width: 30,
-                                  height: 30,
-                                  decoration: const BoxDecoration(
-                                    border: Border(
-                                      top: BorderSide(color: Colors.white, width: 3),
-                                      right: BorderSide(color: Colors.white, width: 3),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                bottom: 0,
-                                left: 0,
-                                child: Container(
-                                  width: 30,
-                                  height: 30,
-                                  decoration: const BoxDecoration(
-                                    border: Border(
-                                      bottom: BorderSide(color: Colors.white, width: 3),
-                                      left: BorderSide(color: Colors.white, width: 3),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                bottom: 0,
-                                right: 0,
-                                child: Container(
-                                  width: 30,
-                                  height: 30,
-                                  decoration: const BoxDecoration(
-                                    border: Border(
-                                      bottom: BorderSide(color: Colors.white, width: 3),
-                                      right: BorderSide(color: Colors.white, width: 3),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                            ),
+                        ],
                       ),
                     ),
-                    if (isProcessing)
-                      Container(
-                        color: Colors.black.withOpacity(0.7),
-                        child: const Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircularProgressIndicator(),
-                              SizedBox(height: 16),
-                              Text(
-                                'Processing...',
-                                style: TextStyle(color: Colors.white),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ),
-          
-          // Status Card
-          Expanded(
-            flex: 2,
-            child: Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  FadeTransition(
-                    opacity: _fadeAnimation,
-                    child: ScaleTransition(
-                      scale: _scaleAnimation,
-                      child: Icon(
-                        scannedData.contains('✅') 
-                            ? Icons.check_circle 
-                            : scannedData.contains('❌') || scannedData.contains('⚠️')
-                                ? Icons.error_outline
-                                : Icons.qr_code_scanner,
-                        size: 50,
-                        color: scannedData.contains('✅')
-                            ? Colors.green
-                            : scannedData.contains('❌') || scannedData.contains('⚠️')
-                                ? Colors.red
-                                : const Color(0xFF1A237E),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    scannedData,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: scannedData.contains('Successfully') 
-                          ? FontWeight.bold 
-                          : FontWeight.normal,
-                      color: scannedData.contains('✅')
-                          ? Colors.green.shade700
-                          : scannedData.contains('❌') || scannedData.contains('⚠️')
-                              ? Colors.red.shade700
-                              : Colors.grey.shade700,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  if (isScanned || scannedData.contains('❌') || scannedData.contains('⚠️'))
-                    ElevatedButton.icon(
-                      onPressed: resetScanner,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Scan Again'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1A237E),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                
+                // Status Card
+                Expanded(
+                  flex: 2,
+                  child: Container(
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, -5),
                         ),
-                      ),
+                      ],
                     ),
-                ],
-              ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        FadeTransition(
+                          opacity: _fadeAnimation,
+                          child: ScaleTransition(
+                            scale: _scaleAnimation,
+                            child: Icon(
+                              scannedData.contains('✅') 
+                                  ? Icons.check_circle 
+                                  : scannedData.contains('❌') || scannedData.contains('⚠️')
+                                      ? Icons.error_outline
+                                      : Icons.qr_code_scanner,
+                              size: 50,
+                              color: scannedData.contains('✅')
+                                  ? Colors.green
+                                  : scannedData.contains('❌') || scannedData.contains('⚠️')
+                                      ? Colors.red
+                                      : const Color(0xFF1A237E),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          scannedData,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: scannedData.contains('Successfully') 
+                                ? FontWeight.bold 
+                                : FontWeight.normal,
+                            color: scannedData.contains('✅')
+                                ? Colors.green.shade700
+                                : scannedData.contains('❌') || scannedData.contains('⚠️')
+                                    ? Colors.red.shade700
+                                    : Colors.grey.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        if (isScanned || scannedData.contains('❌') || scannedData.contains('⚠️'))
+                          ElevatedButton.icon(
+                            onPressed: resetScanner,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Scan Again'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1A237E),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           setState(() {
