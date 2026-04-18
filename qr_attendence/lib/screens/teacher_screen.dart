@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:qr_attendence/screens/teacher_lectures_history.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/qr_service.dart';
 
 class TeacherScreen extends StatefulWidget {
   final String userId;
@@ -112,7 +112,7 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
 
   Future<void> _loadCoursesAndData() async {
     try {
-      // Define courses based on department
+      // Define courses based on department with unique values
       if (teacherDepartment == 'Computer Science' || teacherDepartment == 'CS') {
         courses = [
           'BSCS (Bachelor of Computer Science) - 4 Years',
@@ -139,6 +139,9 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
         ];
       }
       
+      // Remove any duplicates from courses
+      courses = courses.toSet().toList();
+      
       if (courses.isNotEmpty) selectedCourse = courses.first;
       
       _generateBatches();
@@ -158,89 +161,104 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
 
   void _generateBatches() {
     int currentYear = DateTime.now().year;
-    batches.clear();
+    Set<String> uniqueBatches = {};
     
-    if (selectedCourse.contains('Bachelor')) {
+    if (selectedCourse.contains('Bachelor') || selectedCourse.contains('BSCS') || selectedCourse.contains('BSSE') || selectedCourse.contains('BSIT')) {
       for (int i = 0; i < 4; i++) {
         int batchYear = currentYear - i;
-        batches.add('Batch $batchYear - ${batchYear + 4}');
+        uniqueBatches.add('Batch $batchYear - ${batchYear + 4}');
       }
-    } else if (selectedCourse.contains('Master')) {
+    } else if (selectedCourse.contains('Master') || selectedCourse.contains('MSCS') || selectedCourse.contains('MSSE') || selectedCourse.contains('MSIT')) {
       for (int i = 0; i < 2; i++) {
         int batchYear = currentYear - i;
-        batches.add('Batch $batchYear - ${batchYear + 2}');
+        uniqueBatches.add('Batch $batchYear - ${batchYear + 2}');
       }
-    } else if (selectedCourse.contains('PhD')) {
+    } else if (selectedCourse.contains('PhD') || selectedCourse.contains('Doctoral')) {
       for (int i = 0; i < 5; i++) {
         int batchYear = currentYear - i;
-        batches.add('Batch $batchYear - ${batchYear + 5}');
+        uniqueBatches.add('Batch $batchYear - ${batchYear + 5}');
       }
     } else {
       for (int i = 0; i < 4; i++) {
         int batchYear = currentYear - i;
-        batches.add('Batch $batchYear - ${batchYear + 4}');
+        uniqueBatches.add('Batch $batchYear - ${batchYear + 4}');
       }
     }
+    
+    batches = uniqueBatches.toList();
+    batches.sort(); // Sort for consistent ordering
   }
 
   void _generateSemesters() {
-    semesters.clear();
+    Set<String> uniqueSemesters = {};
     
-    if (selectedCourse.contains('Bachelor')) {
+    if (selectedCourse.contains('Bachelor') || selectedCourse.contains('BSCS') || selectedCourse.contains('BSSE') || selectedCourse.contains('BSIT')) {
       for (int i = 1; i <= 8; i++) {
-        semesters.add('Semester $i');
+        uniqueSemesters.add('Semester $i');
       }
-    } else if (selectedCourse.contains('Master')) {
+    } else if (selectedCourse.contains('Master') || selectedCourse.contains('MSCS') || selectedCourse.contains('MSSE') || selectedCourse.contains('MSIT')) {
       for (int i = 1; i <= 4; i++) {
-        semesters.add('Semester $i');
+        uniqueSemesters.add('Semester $i');
       }
-    } else if (selectedCourse.contains('PhD')) {
+    } else if (selectedCourse.contains('PhD') || selectedCourse.contains('Doctoral')) {
       for (int i = 1; i <= 10; i++) {
-        semesters.add('Semester $i');
+        uniqueSemesters.add('Semester $i');
       }
     } else {
       for (int i = 1; i <= 8; i++) {
-        semesters.add('Semester $i');
+        uniqueSemesters.add('Semester $i');
       }
     }
+    
+    semesters = uniqueSemesters.toList();
+    semesters.sort((a, b) {
+      int numA = int.parse(a.split(' ')[1]);
+      int numB = int.parse(b.split(' ')[1]);
+      return numA.compareTo(numB);
+    });
   }
 
   Future<void> _loadAllSubjects() async {
-    subjects.clear();
+    Set<String> uniqueSubjects = {};
     
     if (teacherDepartment == 'Computer Science' || teacherDepartment == 'CS') {
-      if (selectedCourse.contains('Bachelor')) {
-        subjects = [
+      if (selectedCourse.contains('Bachelor') || selectedCourse.contains('BSCS')) {
+        uniqueSubjects.addAll([
           'Programming Fundamentals', 'Object Oriented Programming', 'Data Structures',
           'Database Systems', 'Operating Systems', 'Computer Networks',
           'Software Engineering', 'Artificial Intelligence', 'Machine Learning',
           'Web Development', 'Mobile App Development', 'Cloud Computing',
           'Network Security', 'Digital Image Processing', 'Big Data Analytics',
           'Final Year Project',
-        ];
-      } else if (selectedCourse.contains('Master')) {
-        subjects = [
+        ]);
+      } else if (selectedCourse.contains('Master') || selectedCourse.contains('MSCS')) {
+        uniqueSubjects.addAll([
           'Advanced Algorithms', 'Advanced Databases', 'Research Methodology',
           'Advanced Machine Learning', 'Big Data Analytics', 'Cloud Computing',
           'Network Security', 'Data Science', 'Thesis',
-        ];
+        ]);
       } else {
-        subjects = [
+        uniqueSubjects.addAll([
           'Advanced Research Methods', 'PhD Seminar', 'Dissertation Research',
           'Advanced Topics', 'Research Publication',
-        ];
+        ]);
       }
     } else {
-      subjects = ['Subject 1', 'Subject 2', 'Subject 3', 'Subject 4', 'Subject 5'];
+      uniqueSubjects.addAll(['Subject 1', 'Subject 2', 'Subject 3', 'Subject 4', 'Subject 5']);
     }
+    
+    subjects = uniqueSubjects.toList();
+    subjects.sort();
   }
 
   void _generateTimeSlots() {
-    timeSlots = [
+    Set<String> uniqueTimeSlots = {
       '08:00 AM - 09:00 AM', '09:00 AM - 10:00 AM', '10:00 AM - 11:00 AM',
       '11:00 AM - 12:00 PM', '12:00 PM - 01:00 PM', '01:00 PM - 02:00 PM',
       '02:00 PM - 03:00 PM', '03:00 PM - 04:00 PM', '04:00 PM - 05:00 PM',
-    ];
+    };
+    
+    timeSlots = uniqueTimeSlots.toList();
   }
 
   Future<void> _selectDate() async {
@@ -361,6 +379,19 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
     });
   }
 
+  // Navigation method to Lecture History
+  void _navigateToLectureHistory() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TeacherLectureHistoryScreen(
+          teacherId: widget.userId,
+          teacherName: teacherName,
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     timer?.cancel();
@@ -378,6 +409,12 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // Add Lecture History Button
+          IconButton(
+            icon: const Icon(Icons.history_edu),
+            onPressed: _navigateToLectureHistory,
+            tooltip: 'Lecture History',
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -407,6 +444,65 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
                     _buildTeacherInfoCard(),
                     const SizedBox(height: 20),
                     
+                    // Add Lecture History Card (Quick Access)
+                    Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      child: InkWell(
+                        onTap: _navigateToLectureHistory,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1A237E).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                child: const Icon(
+                                  Icons.history_edu,
+                                  color: Color(0xFF1A237E),
+                                  size: 30,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Lecture History',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1A237E),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'View all lectures you have taken',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right,
+                                color: Colors.grey.shade400,
+                                size: 30,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    
                     Card(
                       elevation: 4,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -425,45 +521,58 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
                             const SizedBox(height: 20),
                             
                             _buildDropdown('Course', selectedCourse, courses, Icons.school, (value) {
-                              setState(() {
-                                selectedCourse = value!;
-                                isQrGenerated = false;
-                                qrData = "";
-                                _resetLectureSession();
-                                _generateBatches();
-                                _generateSemesters();
-                                _loadAllSubjects();
-                              });
+                              if (value != null && value != selectedCourse) {
+                                setState(() {
+                                  selectedCourse = value;
+                                  isQrGenerated = false;
+                                  qrData = "";
+                                  _resetLectureSession();
+                                  _generateBatches();
+                                  _generateSemesters();
+                                  _loadAllSubjects();
+                                  
+                                  // Reset selections to first valid values
+                                  if (batches.isNotEmpty) selectedBatch = batches.first;
+                                  if (semesters.isNotEmpty) selectedSemester = semesters.first;
+                                  if (subjects.isNotEmpty) selectedSubject = subjects.first;
+                                });
+                              }
                             }),
                             const SizedBox(height: 16),
                             
                             _buildDropdown('Batch', selectedBatch, batches, Icons.group, (value) {
-                              setState(() {
-                                selectedBatch = value!;
-                                isQrGenerated = false;
-                                qrData = "";
-                                _resetLectureSession();
-                              });
+                              if (value != null && value != selectedBatch) {
+                                setState(() {
+                                  selectedBatch = value;
+                                  isQrGenerated = false;
+                                  qrData = "";
+                                  _resetLectureSession();
+                                });
+                              }
                             }),
                             const SizedBox(height: 16),
                             
                             _buildDropdown('Semester', selectedSemester, semesters, Icons.grade, (value) {
-                              setState(() {
-                                selectedSemester = value!;
-                                isQrGenerated = false;
-                                qrData = "";
-                                _resetLectureSession();
-                              });
+                              if (value != null && value != selectedSemester) {
+                                setState(() {
+                                  selectedSemester = value;
+                                  isQrGenerated = false;
+                                  qrData = "";
+                                  _resetLectureSession();
+                                });
+                              }
                             }),
                             const SizedBox(height: 16),
                             
                             _buildDropdown('Subject', selectedSubject, subjects, Icons.menu_book, (value) {
-                              setState(() {
-                                selectedSubject = value!;
-                                isQrGenerated = false;
-                                qrData = "";
-                                _resetLectureSession();
-                              });
+                              if (value != null && value != selectedSubject) {
+                                setState(() {
+                                  selectedSubject = value;
+                                  isQrGenerated = false;
+                                  qrData = "";
+                                  _resetLectureSession();
+                                });
+                              }
                             }),
                             const SizedBox(height: 16),
                             
@@ -488,12 +597,14 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
                             const SizedBox(height: 16),
                             
                             _buildDropdown('Time Slot', selectedTimeSlot, timeSlots, Icons.access_time, (value) {
-                              setState(() {
-                                selectedTimeSlot = value!;
-                                isQrGenerated = false;
-                                qrData = "";
-                                _resetLectureSession();
-                              });
+                              if (value != null && value != selectedTimeSlot) {
+                                setState(() {
+                                  selectedTimeSlot = value;
+                                  isQrGenerated = false;
+                                  qrData = "";
+                                  _resetLectureSession();
+                                });
+                              }
                             }),
                           ],
                         ),
@@ -526,20 +637,32 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
   }
 
   Widget _buildDropdown(String label, String value, List<String> items, IconData icon, Function(String?) onChanged) {
+    // Ensure we have unique items
+    final uniqueItems = items.toSet().toList();
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF1A237E))),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: value.isEmpty ? null : value,
+          value: uniqueItems.contains(value) ? value : null,
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: const Color(0xFF1A237E)),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12),
           ),
-          items: items.map((String item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
+          items: uniqueItems.map((String item) {
+            return DropdownMenuItem<String>(
+              value: item,
+              child: Text(
+                item,
+                overflow: TextOverflow.ellipsis,
+              ),
+            );
+          }).toList(),
           onChanged: onChanged,
+          isExpanded: true,
         ),
       ],
     );

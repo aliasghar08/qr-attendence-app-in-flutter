@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:qr_attendence/screens/teacher_screen.dart';
 import '../services/auth_service.dart';
 import 'student_screen.dart';
-import 'teacher_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

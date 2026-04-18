@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_attendence/firebase_options.dart';
 import 'package:qr_attendence/screens/login_screen.dart';
 import 'package:qr_attendence/screens/signup_screen.dart';
-import 'package:qr_attendence/screens/student_screen.dart';
-import 'package:qr_attendence/screens/teacher_dashboard.dart';
-import 'screens/home_screen.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +25,6 @@ class MyApp extends StatelessWidget {
        // '/home': (context) => const HomeScreen(),
         '/login': (context) => const LoginScreen(),
         // '/student': (context) => const StudentScreen(),
-        '/teacher_dashboard': (context) => const TeacherDashboard(),
         '/signup': (context) => const SignupScreen(),
       },
     );

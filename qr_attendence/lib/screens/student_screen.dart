@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:qr_attendence/screens/attendence_screen.dart';
 import '../services/firestore_service.dart';
 
 class StudentScreen extends StatefulWidget {
@@ -10,7 +11,7 @@ class StudentScreen extends StatefulWidget {
   final String userName;
   final String userEmail;
   final Map<String, dynamic>? userData;
-  
+
   const StudentScreen({
     super.key,
     required this.userId,
@@ -23,7 +24,8 @@ class StudentScreen extends StatefulWidget {
   State<StudentScreen> createState() => _StudentScreenState();
 }
 
-class _StudentScreenState extends State<StudentScreen> with SingleTickerProviderStateMixin {
+class _StudentScreenState extends State<StudentScreen>
+    with SingleTickerProviderStateMixin {
   String scannedData = "Ready to scan";
   bool isScanned = false;
   bool isProcessing = false;
@@ -33,7 +35,7 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
   late Animation<double> _scaleAnimation;
 
   final firestoreService = FirestoreService();
-  
+
   // Student info
   String studentName = "";
   String studentRollNo = "";
@@ -52,15 +54,15 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
-    
+
     _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
     );
-    
+
     _scaleAnimation = Tween<double>(begin: 0.5, end: 1).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack),
     );
-    
+
     _animationController.forward();
     _loadStudentInfo();
   }
@@ -79,7 +81,9 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
         studentRollNo = widget.userData?['rollNo'] ?? '';
         studentCourse = widget.userData?['course'] ?? '';
         studentBatch = widget.userData?['batch'] ?? '';
-        studentSemester = _normalizeSemesterForStorage(widget.userData?['semester'] ?? '');
+        studentSemester = _normalizeSemesterForStorage(
+          widget.userData?['semester'] ?? '',
+        );
         studentDepartment = widget.userData?['department'] ?? '';
         studentPhone = widget.userData?['phone'] ?? '';
         studentDob = widget.userData?['dob'] ?? '';
@@ -91,14 +95,16 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             .collection('users')
             .doc(widget.userId)
             .get();
-        
+
         if (doc.exists) {
           setState(() {
             studentName = doc['name'] ?? widget.userName;
             studentRollNo = doc['rollNo'] ?? '';
             studentCourse = doc['course'] ?? '';
             studentBatch = doc['batch'] ?? '';
-            studentSemester = _normalizeSemesterForStorage(doc['semester'] ?? '');
+            studentSemester = _normalizeSemesterForStorage(
+              doc['semester'] ?? '',
+            );
             studentDepartment = doc['department'] ?? '';
             studentPhone = doc['phone'] ?? '';
             studentDob = doc['dob'] ?? '';
@@ -121,74 +127,86 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
 
   String _normalizeSemesterForStorage(String semester) {
     if (semester.isEmpty) return '';
-    
+
     final numbers = RegExp(r'\d+').firstMatch(semester);
     if (numbers != null) {
       return 'Semester ${numbers.group(0)}';
     }
-    
+
     final romanMap = {
-      'I': '1', 'II': '2', 'III': '3', 'IV': '4',
-      'V': '5', 'VI': '6', 'VII': '7', 'VIII': '8'
+      'I': '1',
+      'II': '2',
+      'III': '3',
+      'IV': '4',
+      'V': '5',
+      'VI': '6',
+      'VII': '7',
+      'VIII': '8',
     };
     for (var entry in romanMap.entries) {
       if (semester.toUpperCase().contains(entry.key)) {
         return 'Semester ${entry.value}';
       }
     }
-    
+
     return semester;
   }
 
   String _normalizeSemester(String semesterStr) {
     if (semesterStr.isEmpty) return '';
-    
+
     final numbers = RegExp(r'\d+').allMatches(semesterStr);
     if (numbers.isNotEmpty) {
       return numbers.first.group(0)!;
     }
-    
+
     final romanMap = {
-      'I': '1', 'II': '2', 'III': '3', 'IV': '4',
-      'V': '5', 'VI': '6', 'VII': '7', 'VIII': '8'
+      'I': '1',
+      'II': '2',
+      'III': '3',
+      'IV': '4',
+      'V': '5',
+      'VI': '6',
+      'VII': '7',
+      'VIII': '8',
     };
     for (var entry in romanMap.entries) {
       if (semesterStr.toUpperCase().contains(entry.key)) {
         return entry.value;
       }
     }
-    
+
     return semesterStr;
   }
 
   bool _isCourseMatch(String studentCourse, String qrCourse) {
     if (studentCourse.isEmpty || qrCourse.isEmpty) return true;
-    
+
     final studentProgram = studentCourse.split(' ')[0].toUpperCase();
     final qrProgram = qrCourse.split(' ')[0].toUpperCase();
-    
+
     return studentProgram == qrProgram;
   }
 
   bool _isBatchMatch(String studentBatch, String qrBatch) {
     if (studentBatch.isEmpty || qrBatch.isEmpty) return true;
-    
+
     final studentYear = RegExp(r'\d{4}').firstMatch(studentBatch)?.group(0);
     final qrYear = RegExp(r'\d{4}').firstMatch(qrBatch)?.group(0);
-    
+
     if (studentYear != null && qrYear != null) {
       return studentYear == qrYear;
     }
-    
+
     return studentBatch == qrBatch;
   }
 
   bool _isSemesterMatch(String studentSemester, String qrSemester) {
     if (studentSemester.isEmpty || qrSemester.isEmpty) return true;
-    
+
     final studentSemNum = _normalizeSemester(studentSemester);
     final qrSemNum = _normalizeSemester(qrSemester);
-    
+
     return studentSemNum == qrSemNum;
   }
 
@@ -250,9 +268,17 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
               if (studentPhone.isNotEmpty)
                 _buildInfoRow(Icons.phone, 'Phone', studentPhone),
               if (studentDob.isNotEmpty)
-                _buildInfoRow(Icons.cake, 'Date of Birth', _formatDateString(studentDob)),
+                _buildInfoRow(
+                  Icons.cake,
+                  'Date of Birth',
+                  _formatDateString(studentDob),
+                ),
               const Divider(),
-              _buildInfoRow(Icons.qr_code, 'Student ID', widget.userId.substring(0, 12) + '...'),
+              _buildInfoRow(
+                Icons.qr_code,
+                'Student ID',
+                widget.userId.substring(0, 12) + '...',
+              ),
               const SizedBox(height: 10),
             ],
           ),
@@ -270,46 +296,25 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
     );
   }
 
-  void _showAttendanceHistory() async {
-    final attendanceRecords = await firestoreService.getStudentAttendance(widget.userId);
-    
-    if (attendanceRecords.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No attendance records found')),
-      );
-      return;
-    }
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Attendance History'),
-        content: Container(
-          width: double.maxFinite,
-          height: 400,
-          child: ListView.builder(
-            itemCount: attendanceRecords.length,
-            itemBuilder: (context, index) {
-              final record = attendanceRecords[index];
-              final data = record.data() as Map<String, dynamic>;
-              return ListTile(
-                leading: const Icon(Icons.check_circle, color: Colors.green),
-                title: Text(data['subject']?.toString() ?? 'Unknown Subject'),
-                subtitle: Text('Date: ${data['date']?.toString() ?? 'Unknown'} | Time: ${data['timeSlot']?.toString() ?? 'Unknown'}'),
-                trailing: Text(data['status']?.toString() ?? 'present'),
-              );
-            },
-          ),
+  // NEW: Navigate to detailed attendance history screen
+  void _navigateToAttendanceHistory() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StudentAttendanceScreen(
+          studentId: widget.userId,
+          studentName: studentName,
+          studentBatch: studentBatch,
+          studentCourse: studentCourse,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
+  }
+
+  // Keep the old method for backward compatibility but redirect to new screen
+  void _showAttendanceHistory() async {
+    // Navigate to the detailed attendance screen instead of showing dialog
+    _navigateToAttendanceHistory();
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
@@ -324,10 +329,7 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             width: 100,
             child: Text(
               label,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
             ),
           ),
           Expanded(
@@ -369,12 +371,16 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
           children: [
             const Text('You have already marked attendance for:'),
             const SizedBox(height: 8),
-            Text('📖 Subject: $subject', 
-                 style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              '📖 Subject: $subject',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             Text('👨‍🏫 Teacher: $teacherName'),
             const SizedBox(height: 8),
-            const Text('Duplicate attendance is not allowed.', 
-                 style: TextStyle(color: Colors.red)),
+            const Text(
+              'Duplicate attendance is not allowed.',
+              style: TextStyle(color: Colors.red),
+            ),
           ],
         ),
         actions: [
@@ -412,7 +418,7 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
 
         try {
           final decoded = jsonDecode(code);
-          
+
           final course = decoded['course'] ?? '';
           final batch = decoded['batch'] ?? '';
           final semester = decoded['semester'] ?? '';
@@ -428,13 +434,14 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
           if (expiry != null && expiry.isNotEmpty) {
             final expiryTime = DateTime.parse(expiry);
             final now = DateTime.now();
-            
+
             if (now.isAfter(expiryTime)) {
               setState(() {
-                scannedData = "❌ QR Code Expired!\nThis QR code is no longer valid.";
+                scannedData =
+                    "❌ QR Code Expired!\nThis QR code is no longer valid.";
                 isProcessing = false;
               });
-              
+
               Future.delayed(const Duration(seconds: 3), () {
                 if (mounted) resetScanner();
               });
@@ -445,12 +452,13 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
           if (studentCourse.isNotEmpty && course.isNotEmpty) {
             if (!_isCourseMatch(studentCourse, course)) {
               setState(() {
-                scannedData = "❌ This lecture is not for your course!\n"
-                             "Your Course: ${studentCourse.split(' ')[0]}\n"
-                             "Lecture Course: ${course.split(' ')[0]}";
+                scannedData =
+                    "❌ This lecture is not for your course!\n"
+                    "Your Course: ${studentCourse.split(' ')[0]}\n"
+                    "Lecture Course: ${course.split(' ')[0]}";
                 isProcessing = false;
               });
-              
+
               Future.delayed(const Duration(seconds: 3), () {
                 if (mounted) resetScanner();
               });
@@ -461,12 +469,13 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
           if (studentBatch.isNotEmpty && batch.isNotEmpty) {
             if (!_isBatchMatch(studentBatch, batch)) {
               setState(() {
-                scannedData = "❌ This lecture is not for your batch!\n"
-                             "Your Batch: $studentBatch\n"
-                             "Lecture Batch: $batch";
+                scannedData =
+                    "❌ This lecture is not for your batch!\n"
+                    "Your Batch: $studentBatch\n"
+                    "Lecture Batch: $batch";
                 isProcessing = false;
               });
-              
+
               Future.delayed(const Duration(seconds: 3), () {
                 if (mounted) resetScanner();
               });
@@ -477,12 +486,13 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
           if (studentSemester.isNotEmpty && semester.isNotEmpty) {
             if (!_isSemesterMatch(studentSemester, semester)) {
               setState(() {
-                scannedData = "❌ This lecture is not for your semester!\n"
-                             "Your Semester: $studentSemester\n"
-                             "Lecture Semester: $semester";
+                scannedData =
+                    "❌ This lecture is not for your semester!\n"
+                    "Your Semester: $studentSemester\n"
+                    "Lecture Semester: $semester";
                 isProcessing = false;
               });
-              
+
               Future.delayed(const Duration(seconds: 3), () {
                 if (mounted) resetScanner();
               });
@@ -500,15 +510,16 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
 
           if (hasAttended) {
             setState(() {
-              scannedData = "⚠️ Attendance already marked!\n"
-                           "Student: $studentName\n"
-                           "Subject: $subject\n"
-                           "You have already marked attendance for this lecture.";
+              scannedData =
+                  "⚠️ Attendance already marked!\n"
+                  "Student: $studentName\n"
+                  "Subject: $subject\n"
+                  "You have already marked attendance for this lecture.";
               isProcessing = false;
             });
-            
+
             _showAlreadyMarkedDialog(subject, teacherName);
-            
+
             Future.delayed(const Duration(seconds: 3), () {
               if (mounted) resetScanner();
             });
@@ -538,11 +549,12 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
           );
 
           setState(() {
-            scannedData = "✅ Attendance Marked Successfully!\n"
-                         "📚 Course: ${course.split(' ')[0]}\n"
-                         "📖 Subject: $subject\n"
-                         "👨‍🏫 Teacher: $teacherName\n"
-                         "⏰ Time: $timeSlot";
+            scannedData =
+                "✅ Attendance Marked Successfully!\n"
+                "📚 Course: ${course.split(' ')[0]}\n"
+                "📖 Subject: $subject\n"
+                "👨‍🏫 Teacher: $teacherName\n"
+                "⏰ Time: $timeSlot";
             isScanned = true;
             isProcessing = false;
           });
@@ -556,14 +568,13 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
             timeSlot: timeSlot,
             teacherName: teacherName,
           );
-
         } catch (e) {
           print('Error processing QR: $e');
           setState(() {
             scannedData = "❌ Error: Invalid QR Code format";
             isProcessing = false;
           });
-          
+
           Future.delayed(const Duration(seconds: 3), () {
             if (mounted) resetScanner();
           });
@@ -600,7 +611,7 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
         formattedDate = date;
       }
     }
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -657,10 +668,14 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                     ),
                     const SizedBox(height: 8),
                     Text('👨‍🎓 Name: $studentName'),
-                    if (studentRollNo.isNotEmpty) Text('🎫 Roll No: $studentRollNo'),
-                    if (studentCourse.isNotEmpty) Text('📚 Program: $studentCourse'),
-                    if (studentBatch.isNotEmpty) Text('👥 Batch: $studentBatch'),
-                    if (studentSemester.isNotEmpty) Text('📖 Semester: $studentSemester'),
+                    if (studentRollNo.isNotEmpty)
+                      Text('🎫 Roll No: $studentRollNo'),
+                    if (studentCourse.isNotEmpty)
+                      Text('📚 Program: $studentCourse'),
+                    if (studentBatch.isNotEmpty)
+                      Text('👥 Batch: $studentBatch'),
+                    if (studentSemester.isNotEmpty)
+                      Text('📖 Semester: $studentSemester'),
                   ],
                 ),
               ),
@@ -695,9 +710,10 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // NEW: Navigation icon to attendance history screen
           IconButton(
             icon: const Icon(Icons.history),
-            onPressed: _showAttendanceHistory,
+            onPressed: _navigateToAttendanceHistory,
             tooltip: 'Attendance History',
           ),
           IconButton(
@@ -804,7 +820,10 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.green,
                             borderRadius: BorderRadius.circular(20),
@@ -814,21 +833,21 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                             style: TextStyle(color: Colors.white, fontSize: 12),
                           ),
                         ),
-                        const Icon(
-                          Icons.chevron_right,
-                          color: Colors.white70,
-                        ),
+                        const Icon(Icons.chevron_right, color: Colors.white70),
                       ],
                     ),
                   ),
                 ),
-                
+
                 // Scanner Section Title
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      Icon(Icons.qr_code_scanner, color: const Color(0xFF1A237E)),
+                      Icon(
+                        Icons.qr_code_scanner,
+                        color: const Color(0xFF1A237E),
+                      ),
                       const SizedBox(width: 8),
                       const Text(
                         'Scan QR Code',
@@ -841,9 +860,9 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                     ],
                   ),
                 ),
-                
+
                 const SizedBox(height: 10),
-                
+
                 // Scanner View
                 Expanded(
                   flex: 4,
@@ -896,8 +915,14 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                                         height: 30,
                                         decoration: const BoxDecoration(
                                           border: Border(
-                                            top: BorderSide(color: Colors.white, width: 3),
-                                            left: BorderSide(color: Colors.white, width: 3),
+                                            top: BorderSide(
+                                              color: Colors.white,
+                                              width: 3,
+                                            ),
+                                            left: BorderSide(
+                                              color: Colors.white,
+                                              width: 3,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -910,8 +935,14 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                                         height: 30,
                                         decoration: const BoxDecoration(
                                           border: Border(
-                                            top: BorderSide(color: Colors.white, width: 3),
-                                            right: BorderSide(color: Colors.white, width: 3),
+                                            top: BorderSide(
+                                              color: Colors.white,
+                                              width: 3,
+                                            ),
+                                            right: BorderSide(
+                                              color: Colors.white,
+                                              width: 3,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -924,8 +955,14 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                                         height: 30,
                                         decoration: const BoxDecoration(
                                           border: Border(
-                                            bottom: BorderSide(color: Colors.white, width: 3),
-                                            left: BorderSide(color: Colors.white, width: 3),
+                                            bottom: BorderSide(
+                                              color: Colors.white,
+                                              width: 3,
+                                            ),
+                                            left: BorderSide(
+                                              color: Colors.white,
+                                              width: 3,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -938,8 +975,14 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                                         height: 30,
                                         decoration: const BoxDecoration(
                                           border: Border(
-                                            bottom: BorderSide(color: Colors.white, width: 3),
-                                            right: BorderSide(color: Colors.white, width: 3),
+                                            bottom: BorderSide(
+                                              color: Colors.white,
+                                              width: 3,
+                                            ),
+                                            right: BorderSide(
+                                              color: Colors.white,
+                                              width: 3,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -971,7 +1014,7 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                     ),
                   ),
                 ),
-                
+
                 // Status Card
                 Expanded(
                   flex: 2,
@@ -998,17 +1041,19 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                             child: ScaleTransition(
                               scale: _scaleAnimation,
                               child: Icon(
-                                scannedData.contains('✅') 
-                                    ? Icons.check_circle 
-                                    : scannedData.contains('❌') || scannedData.contains('⚠️')
-                                        ? Icons.error_outline
-                                        : Icons.qr_code_scanner,
+                                scannedData.contains('✅')
+                                    ? Icons.check_circle
+                                    : scannedData.contains('❌') ||
+                                          scannedData.contains('⚠️')
+                                    ? Icons.error_outline
+                                    : Icons.qr_code_scanner,
                                 size: 50,
                                 color: scannedData.contains('✅')
                                     ? Colors.green
-                                    : scannedData.contains('❌') || scannedData.contains('⚠️')
-                                        ? Colors.red
-                                        : const Color(0xFF1A237E),
+                                    : scannedData.contains('❌') ||
+                                          scannedData.contains('⚠️')
+                                    ? Colors.red
+                                    : const Color(0xFF1A237E),
                               ),
                             ),
                           ),
@@ -1018,18 +1063,21 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 16,
-                              fontWeight: scannedData.contains('Successfully') 
-                                  ? FontWeight.bold 
+                              fontWeight: scannedData.contains('Successfully')
+                                  ? FontWeight.bold
                                   : FontWeight.normal,
                               color: scannedData.contains('✅')
                                   ? Colors.green.shade700
-                                  : scannedData.contains('❌') || scannedData.contains('⚠️')
-                                      ? Colors.red.shade700
-                                      : Colors.grey.shade700,
+                                  : scannedData.contains('❌') ||
+                                        scannedData.contains('⚠️')
+                                  ? Colors.red.shade700
+                                  : Colors.grey.shade700,
                             ),
                           ),
                           const SizedBox(height: 20),
-                          if (isScanned || scannedData.contains('❌') || scannedData.contains('⚠️'))
+                          if (isScanned ||
+                              scannedData.contains('❌') ||
+                              scannedData.contains('⚠️'))
                             ElevatedButton.icon(
                               onPressed: resetScanner,
                               icon: const Icon(Icons.refresh),
@@ -1037,7 +1085,10 @@ class _StudentScreenState extends State<StudentScreen> with SingleTickerProvider
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF1A237E),
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 30,
+                                  vertical: 12,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
