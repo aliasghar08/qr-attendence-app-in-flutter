@@ -14,6 +14,7 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
   final phoneController = TextEditingController();
   final rollController = TextEditingController();
   final semesterController = TextEditingController();
@@ -23,6 +24,14 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
   DateTime? selectedDob;
   bool loading = false;
   bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
+  
+  // Password strength tracking
+  bool _hasMinLength = false;
+  bool _hasUppercase = false;
+  bool _hasLowercase = false;
+  bool _hasNumber = false;
+  bool _hasSpecialChar = false;
   
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -66,6 +75,146 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
     );
     
     _animationController.forward();
+    
+    // Add listener to password controller for real-time strength validation
+    passwordController.addListener(_updatePasswordStrength);
+  }
+
+  void _updatePasswordStrength() {
+    setState(() {
+      final password = passwordController.text;
+      _hasMinLength = password.length >= 8;
+      _hasUppercase = password.contains(RegExp(r'[A-Z]'));
+      _hasLowercase = password.contains(RegExp(r'[a-z]'));
+      _hasNumber = password.contains(RegExp(r'[0-9]'));
+      _hasSpecialChar = password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+    });
+  }
+
+  bool _isPasswordValid() {
+    return _hasMinLength && _hasUppercase && _hasLowercase && _hasNumber && _hasSpecialChar;
+  }
+
+  String? _validateEmail(String? email) {
+    if (email == null || email.isEmpty) {
+      return 'Email is required';
+    }
+    
+    // Regular expression for email validation
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
+    
+    if (!emailRegex.hasMatch(email)) {
+      return 'Please enter a valid email address';
+    }
+    
+    // Check for common email providers (optional)
+    final domain = email.split('@').last.toLowerCase();
+    if (!domain.contains('.') || domain.length < 4) {
+      return 'Please enter a valid email domain';
+    }
+    
+    return null;
+  }
+
+  String? _validatePassword(String? password) {
+    if (password == null || password.isEmpty) {
+      return 'Password is required';
+    }
+    
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters long';
+    }
+    
+    if (!password.contains(RegExp(r'[A-Z]'))) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    
+    if (!password.contains(RegExp(r'[a-z]'))) {
+      return 'Password must contain at least one lowercase letter';
+    }
+    
+    if (!password.contains(RegExp(r'[0-9]'))) {
+      return 'Password must contain at least one number';
+    }
+    
+    if (!password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) {
+      return 'Password must contain at least one special character';
+    }
+    
+    return null;
+  }
+
+  String? _validateConfirmPassword(String? confirmPassword) {
+    if (confirmPassword == null || confirmPassword.isEmpty) {
+      return 'Please confirm your password';
+    }
+    
+    if (confirmPassword != passwordController.text) {
+      return 'Passwords do not match';
+    }
+    
+    return null;
+  }
+
+  String? _validateName(String? name) {
+    if (name == null || name.isEmpty) {
+      return 'Full name is required';
+    }
+    
+    if (name.length < 3) {
+      return 'Name must be at least 3 characters';
+    }
+    
+    if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(name)) {
+      return 'Name should only contain letters and spaces';
+    }
+    
+    return null;
+  }
+
+  String? _validatePhone(String? phone) {
+    if (phone == null || phone.isEmpty) {
+      return 'Phone number is required';
+    }
+    
+    if (phone.length < 10 || phone.length > 15) {
+      return 'Phone number must be between 10-15 digits';
+    }
+    
+    if (!RegExp(r'^[0-9+\-\s]+$').hasMatch(phone)) {
+      return 'Please enter a valid phone number';
+    }
+    
+    return null;
+  }
+
+  String? _validateRollNumber(String? rollNo) {
+    if (role == "student") {
+      if (rollNo == null || rollNo.isEmpty) {
+        return 'Roll number is required';
+      }
+      
+      if (rollNo.length < 3) {
+        return 'Please enter a valid roll number';
+      }
+    }
+    return null;
+  }
+
+  String? _validateSemester(String? semester) {
+    if (role == "student") {
+      if (semester == null || semester.isEmpty) {
+        return 'Semester is required';
+      }
+      
+      final semesterNum = int.tryParse(semester);
+      if (semesterNum == null || semesterNum < 1 || semesterNum > 8) {
+        return 'Please enter a valid semester (1-8)';
+      }
+    }
+    return null;
   }
 
   @override
@@ -73,10 +222,12 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
     nameController.dispose();
     emailController.dispose();
     passwordController.dispose();
+    confirmPasswordController.dispose();
     phoneController.dispose();
     rollController.dispose();
     semesterController.dispose();
     _animationController.dispose();
+    passwordController.removeListener(_updatePasswordStrength);
     super.dispose();
   }
 
@@ -109,48 +260,62 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
   }
 
   void signup() async {
-    // Validation
-    if (nameController.text.trim().isEmpty) {
-      _showErrorSnackBar('Please enter your full name');
+    // Validate all fields
+    final nameError = _validateName(nameController.text.trim());
+    if (nameError != null) {
+      _showErrorSnackBar(nameError);
       return;
     }
-    if (emailController.text.trim().isEmpty) {
-      _showErrorSnackBar('Please enter your email');
+    
+    final emailError = _validateEmail(emailController.text.trim());
+    if (emailError != null) {
+      _showErrorSnackBar(emailError);
       return;
     }
-    if (!emailController.text.contains('@')) {
-      _showErrorSnackBar('Please enter a valid email');
+    
+    final passwordError = _validatePassword(passwordController.text);
+    if (passwordError != null) {
+      _showErrorSnackBar(passwordError);
       return;
     }
-    if (passwordController.text.length < 6) {
-      _showErrorSnackBar('Password must be at least 6 characters');
+    
+    final confirmPasswordError = _validateConfirmPassword(confirmPasswordController.text);
+    if (confirmPasswordError != null) {
+      _showErrorSnackBar(confirmPasswordError);
       return;
     }
-    if (phoneController.text.trim().isEmpty) {
-      _showErrorSnackBar('Please enter your phone number');
+    
+    final phoneError = _validatePhone(phoneController.text.trim());
+    if (phoneError != null) {
+      _showErrorSnackBar(phoneError);
       return;
     }
+    
     if (selectedDepartment.isEmpty) {
       _showErrorSnackBar('Please select your department');
       return;
     }
+    
     if (selectedDob == null) {
       _showErrorSnackBar('Please select your date of birth');
       return;
     }
-    if (role == "student" && rollController.text.trim().isEmpty) {
-      _showErrorSnackBar('Please enter your roll number');
+    
+    final rollError = _validateRollNumber(rollController.text.trim());
+    if (rollError != null) {
+      _showErrorSnackBar(rollError);
       return;
     }
-    if (role == "student" && semesterController.text.trim().isEmpty) {
-      _showErrorSnackBar('Please enter your semester');
+    
+    final semesterError = _validateSemester(semesterController.text.trim());
+    if (semesterError != null) {
+      _showErrorSnackBar(semesterError);
       return;
     }
 
     setState(() => loading = true);
 
     try {
-      // 1. Create Auth user
       final user = await authService.signup(
         emailController.text.trim(),
         passwordController.text.trim(),
@@ -158,21 +323,19 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
 
       final uid = user!.uid;
 
-      // 2. Save full profile in Firestore
       await FirebaseFirestore.instance.collection("users").doc(uid).set({
         "name": nameController.text.trim(),
-        "email": emailController.text.trim(),
+        "email": emailController.text.trim().toLowerCase(),
         "phone": phoneController.text.trim(),
         "role": role,
         "department": selectedDepartment,
-        "rollNo": role == "student" ? rollController.text.trim() : null,
+        "rollNo": role == "student" ? rollController.text.trim().toUpperCase() : null,
         "semester": role == "student" ? semesterController.text.trim() : null,
         "dob": selectedDob?.toIso8601String(),
         "createdAt": DateTime.now().toIso8601String(),
       });
 
       if (mounted) {
-        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -189,7 +352,6 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
           ),
         );
         
-        // Navigate to login screen after a short delay
         await Future.delayed(const Duration(seconds: 2));
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/login');
@@ -207,24 +369,6 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
     }
   }
 
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white),
-            const SizedBox(width: 12),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.green.shade700,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -232,7 +376,13 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
           children: [
             const Icon(Icons.error_outline, color: Colors.white),
             const SizedBox(width: 12),
-            Expanded(child: Text(message)),
+            Expanded(
+              child: Text(
+                message,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+              ),
+            ),
           ],
         ),
         backgroundColor: Colors.red.shade700,
@@ -268,12 +418,9 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Animated Header
                     _buildHeader(),
-                    
                     const SizedBox(height: 32),
                     
-                    // Progress Indicator
                     if (loading)
                       LinearProgressIndicator(
                         value: null,
@@ -283,12 +430,12 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                     
                     const SizedBox(height: 24),
                     
-                    // Form Fields
                     _buildAnimatedTextField(
                       controller: nameController,
                       label: 'Full Name',
                       icon: Icons.person_outline,
                       keyboardType: TextInputType.name,
+                      validator: _validateName,
                     ),
                     
                     const SizedBox(height: 16),
@@ -298,28 +445,20 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                       label: 'Email Address',
                       icon: Icons.email_outlined,
                       keyboardType: TextInputType.emailAddress,
+                      validator: _validateEmail,
                     ),
                     
                     const SizedBox(height: 16),
                     
-                    _buildAnimatedTextField(
-                      controller: passwordController,
-                      label: 'Password',
-                      icon: Icons.lock_outline,
-                      obscureText: !_isPasswordVisible,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
-                          color: Colors.grey.shade600,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _isPasswordVisible = !_isPasswordVisible;
-                          });
-                        },
-                      ),
-                      hintText: 'Minimum 6 characters',
-                    ),
+                    _buildAnimatedPasswordField(),
+                    
+                    const SizedBox(height: 16),
+                    
+                    _buildAnimatedConfirmPasswordField(),
+                    
+                    const SizedBox(height: 16),
+                    
+                    _buildPasswordStrengthIndicator(),
                     
                     const SizedBox(height: 16),
                     
@@ -328,19 +467,17 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                       label: 'Phone Number',
                       icon: Icons.phone_outlined,
                       keyboardType: TextInputType.phone,
+                      validator: _validatePhone,
                     ),
                     
                     const SizedBox(height: 16),
                     
-                    // Role Dropdown
                     _buildAnimatedRoleDropdown(),
                     
                     const SizedBox(height: 16),
                     
-                    // Department Dropdown
                     _buildAnimatedDepartmentDropdown(),
                     
-                    // Conditional Student Fields with Number Input Only
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
                       child: role == "student"
@@ -352,10 +489,9 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                                   controller: rollController,
                                   label: 'Roll Number',
                                   icon: Icons.numbers_outlined,
-                                  keyboardType: TextInputType.number,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.digitsOnly,
-                                  ],
+                                  keyboardType: TextInputType.text,
+                                  validator: _validateRollNumber,
+                                  textCapitalization: TextCapitalization.characters,
                                 ),
                                 const SizedBox(height: 16),
                                 _buildAnimatedTextField(
@@ -366,6 +502,7 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                                   inputFormatters: [
                                     FilteringTextInputFormatter.digitsOnly,
                                   ],
+                                  validator: _validateSemester,
                                 ),
                               ],
                             )
@@ -374,17 +511,14 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                     
                     const SizedBox(height: 16),
                     
-                    // Date of Birth Picker
                     _buildDobPicker(),
                     
                     const SizedBox(height: 24),
                     
-                    // Sign Up Button
                     _buildSignUpButton(),
                     
                     const SizedBox(height: 20),
                     
-                    // Login Link
                     _buildLoginLink(),
                     
                     const SizedBox(height: 20),
@@ -440,6 +574,7 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
               fontWeight: FontWeight.bold,
               color: Color(0xFF1A237E),
             ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
@@ -448,6 +583,7 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
               fontSize: 14,
               color: Colors.grey.shade600,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -463,6 +599,8 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
     Widget? suffixIcon,
     String? hintText,
     List<TextInputFormatter>? inputFormatters,
+    String? Function(String?)? validator,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     return TweenAnimationBuilder(
       tween: Tween<double>(begin: 0, end: 1),
@@ -493,6 +631,8 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
           obscureText: obscureText,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
+          textCapitalization: textCapitalization,
+          validator: validator,
           decoration: InputDecoration(
             labelText: label,
             hintText: hintText,
@@ -505,11 +645,203 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
             ),
             filled: true,
             fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(vertical: 15),
+            contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildAnimatedPasswordField() {
+    return TweenAnimationBuilder(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 500),
+      builder: (context, double value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: TextFormField(
+          controller: passwordController,
+          obscureText: !_isPasswordVisible,
+          keyboardType: TextInputType.text,
+          validator: (value) => _validatePassword(value),
+          decoration: InputDecoration(
+            labelText: 'Password',
+            hintText: 'Minimum 8 characters',
+            labelStyle: TextStyle(color: Colors.grey.shade600),
+            prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF1A237E)),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
+                color: Colors.grey.shade600,
+              ),
+              onPressed: () {
+                setState(() {
+                  _isPasswordVisible = !_isPasswordVisible;
+                });
+              },
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(15),
+              borderSide: BorderSide.none,
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedConfirmPasswordField() {
+    return TweenAnimationBuilder(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 500),
+      builder: (context, double value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: TextFormField(
+          controller: confirmPasswordController,
+          obscureText: !_isConfirmPasswordVisible,
+          keyboardType: TextInputType.text,
+          validator: (value) => _validateConfirmPassword(value),
+          decoration: InputDecoration(
+            labelText: 'Confirm Password',
+            hintText: 'Re-enter your password',
+            labelStyle: TextStyle(color: Colors.grey.shade600),
+            prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF1A237E)),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _isConfirmPasswordVisible ? Icons.visibility_off : Icons.visibility,
+                color: Colors.grey.shade600,
+              ),
+              onPressed: () {
+                setState(() {
+                  _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                });
+              },
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(15),
+              borderSide: BorderSide.none,
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPasswordStrengthIndicator() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 4,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(2),
+              color: Colors.grey.shade200,
+            ),
+            child: Row(
+              children: [
+                _buildStrengthBar(_hasMinLength, Colors.blue),
+                _buildStrengthBar(_hasUppercase, Colors.blue),
+                _buildStrengthBar(_hasLowercase, Colors.blue),
+                _buildStrengthBar(_hasNumber, Colors.blue),
+                _buildStrengthBar(_hasSpecialChar, Colors.blue),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _getPasswordStrengthMessage(),
+            style: TextStyle(
+              fontSize: 12,
+              color: _getPasswordStrengthColor(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStrengthBar(bool isValid, Color color) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 1),
+        height: 4,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(2),
+          color: isValid ? color : Colors.grey.shade200,
+        ),
+      ),
+    );
+  }
+
+  String _getPasswordStrengthMessage() {
+    if (_isPasswordValid()) {
+      return '✓ Strong password!';
+    } else if (_hasMinLength || _hasUppercase || _hasLowercase || _hasNumber || _hasSpecialChar) {
+      final missing = <String>[];
+      if (!_hasMinLength) missing.add('8+ chars');
+      if (!_hasUppercase) missing.add('uppercase');
+      if (!_hasLowercase) missing.add('lowercase');
+      if (!_hasNumber) missing.add('number');
+      if (!_hasSpecialChar) missing.add('special char');
+      return 'Weak password - Missing: ${missing.join(", ")}';
+    } else {
+      return 'Enter a strong password';
+    }
+  }
+
+  Color _getPasswordStrengthColor() {
+    if (_isPasswordValid()) {
+      return Colors.green;
+    } else if (_hasMinLength || _hasUppercase || _hasLowercase || _hasNumber || _hasSpecialChar) {
+      return Colors.orange;
+    } else {
+      return Colors.grey;
+    }
   }
 
   Widget _buildAnimatedRoleDropdown() {
@@ -539,6 +871,7 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
         ),
         child: DropdownButtonFormField<String>(
           value: role,
+          isExpanded: true,
           items: const [
             DropdownMenuItem(
               value: "student",
@@ -546,7 +879,12 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                 children: [
                   Icon(Icons.school, size: 20, color: Color(0xFF1A237E)),
                   SizedBox(width: 10),
-                  Text("Student"),
+                  Expanded(
+                    child: Text(
+                      "Student",
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -556,7 +894,12 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                 children: [
                   Icon(Icons.cast_for_education, size: 20, color: Color(0xFF1A237E)),
                   SizedBox(width: 10),
-                  Text("Teacher"),
+                  Expanded(
+                    child: Text(
+                      "Teacher",
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -574,7 +917,7 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
             ),
             filled: true,
             fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(vertical: 5),
+            contentPadding: const EdgeInsets.symmetric(vertical: 5, horizontal: 15),
           ),
         ),
       ),
@@ -620,6 +963,7 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                     child: Text(
                       department,
                       overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
                 ],
@@ -643,7 +987,7 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
             ),
             filled: true,
             fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(vertical: 5),
+            contentPadding: const EdgeInsets.symmetric(vertical: 5, horizontal: 15),
           ),
         ),
       ),
@@ -693,6 +1037,8 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                       color: selectedDob == null ? Colors.grey.shade600 : Colors.black,
                       fontSize: 16,
                     ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
                 if (selectedDob != null)
@@ -703,6 +1049,8 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                         selectedDob = null;
                       });
                     },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
               ],
             ),
@@ -754,6 +1102,7 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
         ),
       ),
@@ -764,20 +1113,26 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text(
-          'Already have an account? ',
-          style: TextStyle(color: Colors.grey.shade600),
-        ),
-        GestureDetector(
-          onTap: () {
-            Navigator.pushReplacementNamed(context, '/login');
-          },
+        Flexible(
           child: Text(
-            'Sign In',
-            style: TextStyle(
-              color: const Color(0xFF1A237E),
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+            'Already have an account? ',
+            style: TextStyle(color: Colors.grey.shade600),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Flexible(
+          child: GestureDetector(
+            onTap: () {
+              Navigator.pushReplacementNamed(context, '/login');
+            },
+            child: Text(
+              'Sign In',
+              style: TextStyle(
+                color: const Color(0xFF1A237E),
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ),

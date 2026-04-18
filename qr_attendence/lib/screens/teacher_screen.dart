@@ -11,7 +11,7 @@ class TeacherScreen extends StatefulWidget {
   final String userName;
   final String userEmail;
   final Map<String, dynamic>? userData;
-  
+
   const TeacherScreen({
     super.key,
     required this.userId,
@@ -24,7 +24,8 @@ class TeacherScreen extends StatefulWidget {
   State<TeacherScreen> createState() => _TeacherScreenState();
 }
 
-class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProviderStateMixin {
+class _TeacherScreenState extends State<TeacherScreen>
+    with SingleTickerProviderStateMixin {
   String qrData = "";
   Timer? timer;
   bool isLoading = true;
@@ -33,7 +34,7 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
   int remainingSeconds = 30;
   late AnimationController _animationController;
   late Animation<double> _progressAnimation;
-  
+
   // University-specific variables
   String selectedCourse = "";
   String selectedBatch = "";
@@ -41,16 +42,16 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
   String selectedSubject = "";
   String selectedTimeSlot = "";
   DateTime selectedDate = DateTime.now();
-  
+
   // Persistent lecture ID for the entire session
   String currentLectureId = "";
-  
+
   List<String> courses = [];
   List<String> batches = [];
   List<String> semesters = [];
   List<String> subjects = [];
   List<String> timeSlots = [];
-  
+
   bool isQrGenerated = false;
 
   @override
@@ -60,8 +61,11 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
       vsync: this,
       duration: const Duration(seconds: 30),
     );
-    _progressAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(_animationController);
-    
+    _progressAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(_animationController);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadTeacherData();
     });
@@ -83,7 +87,7 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
             .collection('users')
             .doc(widget.userId)
             .get();
-        
+
         if (doc.exists) {
           setState(() {
             teacherName = doc['name'] ?? widget.userName;
@@ -94,12 +98,11 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
             teacherName = widget.userName;
           });
         }
-        
+
         await _loadCoursesAndData();
         setState(() {
           isLoading = false;
         });
-        
       } catch (e) {
         print('Error loading teacher data: $e');
         setState(() {
@@ -112,20 +115,23 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
 
   Future<void> _loadCoursesAndData() async {
     try {
-      // Define courses based on department with unique values
-      if (teacherDepartment == 'Computer Science' || teacherDepartment == 'CS') {
+      // Define courses based on department
+      if (teacherDepartment == 'Computer Science' ||
+          teacherDepartment == 'CS') {
         courses = [
           'BSCS (Bachelor of Computer Science) - 4 Years',
           'MSCS (Master of Computer Science) - 2 Years',
           'PhD Computer Science - 5 Years',
         ];
-      } else if (teacherDepartment == 'Software Engineering' || teacherDepartment == 'SE') {
+      } else if (teacherDepartment == 'Software Engineering' ||
+          teacherDepartment == 'SE') {
         courses = [
           'BSSE (Bachelor of Software Engineering) - 4 Years',
           'MSSE (Master of Software Engineering) - 2 Years',
           'PhD Software Engineering - 5 Years',
         ];
-      } else if (teacherDepartment == 'Information Technology' || teacherDepartment == 'IT') {
+      } else if (teacherDepartment == 'Information Technology' ||
+          teacherDepartment == 'IT') {
         courses = [
           'BSIT (Bachelor of Information Technology) - 4 Years',
           'MSIT (Master of Information Technology) - 2 Years',
@@ -138,22 +144,20 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
           'Doctoral Program - 5 Years',
         ];
       }
-      
-      // Remove any duplicates from courses
+
       courses = courses.toSet().toList();
-      
+
       if (courses.isNotEmpty) selectedCourse = courses.first;
-      
+
       _generateBatches();
       _generateSemesters();
       await _loadAllSubjects();
       _generateTimeSlots();
-      
+
       if (batches.isNotEmpty) selectedBatch = batches.first;
       if (semesters.isNotEmpty) selectedSemester = semesters.first;
       if (subjects.isNotEmpty) selectedSubject = subjects.first;
       if (timeSlots.isNotEmpty) selectedTimeSlot = timeSlots.first;
-      
     } catch (e) {
       print('Error loading courses: $e');
     }
@@ -162,18 +166,25 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
   void _generateBatches() {
     int currentYear = DateTime.now().year;
     Set<String> uniqueBatches = {};
-    
-    if (selectedCourse.contains('Bachelor') || selectedCourse.contains('BSCS') || selectedCourse.contains('BSSE') || selectedCourse.contains('BSIT')) {
+
+    if (selectedCourse.contains('Bachelor') ||
+        selectedCourse.contains('BSCS') ||
+        selectedCourse.contains('BSSE') ||
+        selectedCourse.contains('BSIT')) {
       for (int i = 0; i < 4; i++) {
         int batchYear = currentYear - i;
         uniqueBatches.add('Batch $batchYear - ${batchYear + 4}');
       }
-    } else if (selectedCourse.contains('Master') || selectedCourse.contains('MSCS') || selectedCourse.contains('MSSE') || selectedCourse.contains('MSIT')) {
+    } else if (selectedCourse.contains('Master') ||
+        selectedCourse.contains('MSCS') ||
+        selectedCourse.contains('MSSE') ||
+        selectedCourse.contains('MSIT')) {
       for (int i = 0; i < 2; i++) {
         int batchYear = currentYear - i;
         uniqueBatches.add('Batch $batchYear - ${batchYear + 2}');
       }
-    } else if (selectedCourse.contains('PhD') || selectedCourse.contains('Doctoral')) {
+    } else if (selectedCourse.contains('PhD') ||
+        selectedCourse.contains('Doctoral')) {
       for (int i = 0; i < 5; i++) {
         int batchYear = currentYear - i;
         uniqueBatches.add('Batch $batchYear - ${batchYear + 5}');
@@ -184,23 +195,30 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
         uniqueBatches.add('Batch $batchYear - ${batchYear + 4}');
       }
     }
-    
+
     batches = uniqueBatches.toList();
-    batches.sort(); // Sort for consistent ordering
+    batches.sort();
   }
 
   void _generateSemesters() {
     Set<String> uniqueSemesters = {};
-    
-    if (selectedCourse.contains('Bachelor') || selectedCourse.contains('BSCS') || selectedCourse.contains('BSSE') || selectedCourse.contains('BSIT')) {
+
+    if (selectedCourse.contains('Bachelor') ||
+        selectedCourse.contains('BSCS') ||
+        selectedCourse.contains('BSSE') ||
+        selectedCourse.contains('BSIT')) {
       for (int i = 1; i <= 8; i++) {
         uniqueSemesters.add('Semester $i');
       }
-    } else if (selectedCourse.contains('Master') || selectedCourse.contains('MSCS') || selectedCourse.contains('MSSE') || selectedCourse.contains('MSIT')) {
+    } else if (selectedCourse.contains('Master') ||
+        selectedCourse.contains('MSCS') ||
+        selectedCourse.contains('MSSE') ||
+        selectedCourse.contains('MSIT')) {
       for (int i = 1; i <= 4; i++) {
         uniqueSemesters.add('Semester $i');
       }
-    } else if (selectedCourse.contains('PhD') || selectedCourse.contains('Doctoral')) {
+    } else if (selectedCourse.contains('PhD') ||
+        selectedCourse.contains('Doctoral')) {
       for (int i = 1; i <= 10; i++) {
         uniqueSemesters.add('Semester $i');
       }
@@ -209,7 +227,7 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
         uniqueSemesters.add('Semester $i');
       }
     }
-    
+
     semesters = uniqueSemesters.toList();
     semesters.sort((a, b) {
       int numA = int.parse(a.split(' ')[1]);
@@ -220,44 +238,225 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
 
   Future<void> _loadAllSubjects() async {
     Set<String> uniqueSubjects = {};
-    
+
+    // Computer Science Department Subjects
     if (teacherDepartment == 'Computer Science' || teacherDepartment == 'CS') {
-      if (selectedCourse.contains('Bachelor') || selectedCourse.contains('BSCS')) {
+      if (selectedCourse.contains('Bachelor') ||
+          selectedCourse.contains('BSCS')) {
         uniqueSubjects.addAll([
-          'Programming Fundamentals', 'Object Oriented Programming', 'Data Structures',
-          'Database Systems', 'Operating Systems', 'Computer Networks',
-          'Software Engineering', 'Artificial Intelligence', 'Machine Learning',
-          'Web Development', 'Mobile App Development', 'Cloud Computing',
-          'Network Security', 'Digital Image Processing', 'Big Data Analytics',
-          'Final Year Project',
+          // Semester 1
+          'Programming Fundamentals',
+          'Introduction to Computing',
+          'Calculus',
+          'English Composition',
+          'Islamic Studies',
+          // Semester 2
+          'Object Oriented Programming',
+          'Digital Logic Design',
+          'Discrete Structures',
+          'Technical Writing',
+          'Pakistan Studies',
+          // Semester 3
+          'Data Structures & Algorithms',
+          'Database Systems',
+          'Computer Organization',
+          'Probability & Statistics',
+          'Linear Algebra',
+          // Semester 4
+          'Operating Systems',
+          'Software Engineering',
+          'Theory of Automata',
+          'Numerical Computing',
+          'Multivariable Calculus',
+          // Semester 5
+          'Computer Networks',
+          'Web Development',
+          'Artificial Intelligence',
+          'Design & Analysis of Algorithms',
+          'Professional Practices',
+          // Semester 6
+          'Mobile App Development',
+          'Cloud Computing',
+          'Information Security',
+          'Human Computer Interaction',
+          'Data Mining',
+          // Semester 7
+          'Machine Learning',
+          'Network Security',
+          'Parallel & Distributed Computing',
+          'Digital Image Processing',
+          'Final Year Project Part 1',
+          // Semester 8
+          'Big Data Analytics',
+          'Internet of Things',
+          'Blockchain Technologies',
+          'Computer Vision',
+          'Final Year Project Part 2',
         ]);
-      } else if (selectedCourse.contains('Master') || selectedCourse.contains('MSCS')) {
+      } else if (selectedCourse.contains('Master') ||
+          selectedCourse.contains('MSCS')) {
         uniqueSubjects.addAll([
-          'Advanced Algorithms', 'Advanced Databases', 'Research Methodology',
-          'Advanced Machine Learning', 'Big Data Analytics', 'Cloud Computing',
-          'Network Security', 'Data Science', 'Thesis',
+          'Advanced Algorithms',
+          'Advanced Database Systems',
+          'Research Methodology',
+          'Advanced Operating Systems',
+          'Advanced Computer Networks',
+          'Advanced Software Engineering',
+          'Machine Learning',
+          'Data Science',
+          'Big Data Analytics',
+          'Cloud Computing',
+          'Network Security',
+          'Digital Image Processing',
+          'Artificial Intelligence',
+          'Internet of Things',
+          'Thesis Part 1',
+          'Thesis Part 2',
         ]);
       } else {
         uniqueSubjects.addAll([
-          'Advanced Research Methods', 'PhD Seminar', 'Dissertation Research',
-          'Advanced Topics', 'Research Publication',
+          'Advanced Research Methods',
+          'PhD Seminar',
+          'Dissertation Research',
+          'Advanced Topics in CS',
+          'Research Publication',
+          'Proposal Writing',
+          'Thesis Defense',
+          'Advanced Machine Learning',
         ]);
       }
-    } else {
-      uniqueSubjects.addAll(['Subject 1', 'Subject 2', 'Subject 3', 'Subject 4', 'Subject 5']);
     }
-    
+    // Software Engineering Department Subjects
+    else if (teacherDepartment == 'Software Engineering' ||
+        teacherDepartment == 'SE') {
+      if (selectedCourse.contains('Bachelor') ||
+          selectedCourse.contains('BSSE')) {
+        uniqueSubjects.addAll([
+          'Programming Fundamentals',
+          'Object Oriented Programming',
+          'Data Structures',
+          'Database Systems',
+          'Software Requirements Engineering',
+          'Software Design & Architecture',
+          'Software Testing & Quality Assurance',
+          'Software Project Management',
+          'Web Engineering',
+          'Mobile Application Development',
+          'Cloud Computing',
+          'DevOps',
+          'Agile Development',
+          'User Experience Design',
+          'Software Construction',
+          'Formal Methods',
+          'Software Metrics',
+          'Software Maintenance',
+          'Final Year Project',
+        ]);
+      } else if (selectedCourse.contains('Master') ||
+          selectedCourse.contains('MSSE')) {
+        uniqueSubjects.addAll([
+          'Advanced Software Engineering',
+          'Software Architecture',
+          'Software Quality Management',
+          'Agile Methodologies',
+          'Software Security',
+          'Cloud Native Development',
+          'DevOps Practices',
+          'Software Process Improvement',
+          'Requirements Engineering',
+          'Software Testing Advanced',
+          'Thesis',
+        ]);
+      } else {
+        uniqueSubjects.addAll([
+          'Advanced SE Research',
+          'PhD Seminar',
+          'Dissertation Research',
+          'Advanced Topics in SE',
+        ]);
+      }
+    }
+    // Information Technology Department Subjects
+    else if (teacherDepartment == 'Information Technology' ||
+        teacherDepartment == 'IT') {
+      if (selectedCourse.contains('Bachelor') ||
+          selectedCourse.contains('BSIT')) {
+        uniqueSubjects.addAll([
+          'IT Fundamentals',
+          'Programming Basics',
+          'Web Technologies',
+          'Database Management',
+          'Network Administration',
+          'System Administration',
+          'IT Project Management',
+          'Cyber Security',
+          'Cloud Infrastructure',
+          'IT Support',
+          'E-commerce Technologies',
+          'Digital Marketing',
+          'IT Service Management',
+          'Enterprise Systems',
+          'Business Intelligence',
+          'Data Analytics',
+          'IT Governance',
+          'Final Year Project',
+        ]);
+      } else if (selectedCourse.contains('Master') ||
+          selectedCourse.contains('MSIT')) {
+        uniqueSubjects.addAll([
+          'Advanced IT Management',
+          'IT Strategy',
+          'Enterprise Architecture',
+          'IT Security Management',
+          'Cloud Solutions',
+          'Data Center Management',
+          'IT Service Delivery',
+          'Business Process Management',
+          'Digital Transformation',
+          'Thesis',
+        ]);
+      } else {
+        uniqueSubjects.addAll([
+          'Advanced IT Research',
+          'PhD Seminar',
+          'Dissertation Research',
+          'Advanced Topics in IT',
+        ]);
+      }
+    }
+    // General Subjects for other departments
+    else {
+      uniqueSubjects.addAll([
+        'Subject 1',
+        'Subject 2',
+        'Subject 3',
+        'Subject 4',
+        'Subject 5',
+        'Subject 6',
+        'Subject 7',
+        'Subject 8',
+        'Subject 9',
+        'Subject 10',
+      ]);
+    }
+
     subjects = uniqueSubjects.toList();
     subjects.sort();
   }
 
   void _generateTimeSlots() {
     Set<String> uniqueTimeSlots = {
-      '08:00 AM - 09:00 AM', '09:00 AM - 10:00 AM', '10:00 AM - 11:00 AM',
-      '11:00 AM - 12:00 PM', '12:00 PM - 01:00 PM', '01:00 PM - 02:00 PM',
-      '02:00 PM - 03:00 PM', '03:00 PM - 04:00 PM', '04:00 PM - 05:00 PM',
+      '08:00 AM - 09:00 AM',
+      '09:00 AM - 10:00 AM',
+      '10:00 AM - 11:00 AM',
+      '11:00 AM - 12:00 PM',
+      '12:00 PM - 01:00 PM',
+      '01:00 PM - 02:00 PM',
+      '02:00 PM - 03:00 PM',
+      '03:00 PM - 04:00 PM',
+      '04:00 PM - 05:00 PM',
     };
-    
+
     timeSlots = uniqueTimeSlots.toList();
   }
 
@@ -298,8 +497,11 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
   }
 
   void generateQR() {
-    if (selectedCourse.isEmpty || selectedBatch.isEmpty || selectedSemester.isEmpty || 
-        selectedSubject.isEmpty || selectedTimeSlot.isEmpty) {
+    if (selectedCourse.isEmpty ||
+        selectedBatch.isEmpty ||
+        selectedSemester.isEmpty ||
+        selectedSubject.isEmpty ||
+        selectedTimeSlot.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please fill all lecture details first!'),
@@ -308,15 +510,14 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
       );
       return;
     }
-    
+
     try {
-      // Generate a persistent lectureId for this session if it doesn't exist
       if (currentLectureId.isEmpty) {
         currentLectureId = 'LEC_${DateTime.now().millisecondsSinceEpoch}';
       }
-      
+
       final now = DateTime.now();
-      
+
       final lectureInfo = {
         'course': selectedCourse,
         'batch': selectedBatch,
@@ -327,25 +528,25 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
         'teacherId': widget.userId,
         'teacherName': teacherName,
         'department': teacherDepartment,
-        'lectureId': currentLectureId, // Same lectureId for the whole session
+        'lectureId': currentLectureId,
         'timestamp': now.toIso8601String(),
         'expiry': now.add(const Duration(seconds: 30)).toIso8601String(),
       };
-      
+
       final generatedData = jsonEncode(lectureInfo);
-      
+
       if (generatedData.isEmpty) {
         throw Exception("Generated QR data is empty");
       }
-      
+
       setState(() {
         qrData = generatedData;
         remainingSeconds = 30;
         isQrGenerated = true;
       });
-      
+
       _resetTimer();
-      
+
       if (mounted && !isLoading) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -358,9 +559,9 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
     } catch (e) {
       print('Error generating QR: $e');
       if (mounted && !isLoading) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error generating QR: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error generating QR: $e')));
       }
     }
   }
@@ -369,7 +570,7 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
     timer?.cancel();
     _animationController.reset();
     _animationController.forward();
-    
+
     timer = Timer.periodic(const Duration(seconds: 30), (timer) {
       if (mounted && isQrGenerated) {
         generateQR();
@@ -379,7 +580,6 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
     });
   }
 
-  // Navigation method to Lecture History
   void _navigateToLectureHistory() {
     Navigator.push(
       context,
@@ -409,7 +609,6 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          // Add Lecture History Button
           IconButton(
             icon: const Icon(Icons.history_edu),
             onPressed: _navigateToLectureHistory,
@@ -443,11 +642,12 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
                   children: [
                     _buildTeacherInfoCard(),
                     const SizedBox(height: 20),
-                    
-                    // Add Lecture History Card (Quick Access)
+
                     Card(
                       elevation: 4,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                       child: InkWell(
                         onTap: _navigateToLectureHistory,
                         borderRadius: BorderRadius.circular(20),
@@ -458,7 +658,9 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF1A237E).withOpacity(0.1),
+                                  color: const Color(
+                                    0xFF1A237E,
+                                  ).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(15),
                                 ),
                                 child: const Icon(
@@ -502,10 +704,12 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
                       ),
                     ),
                     const SizedBox(height: 20),
-                    
+
                     Card(
                       elevation: 4,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.all(20),
                         child: Column(
@@ -515,116 +719,179 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
                               children: [
                                 Icon(Icons.class_, color: Color(0xFF1A237E)),
                                 SizedBox(width: 10),
-                                Text('Lecture Details', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+                                Text(
+                                  'Lecture Details',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1A237E),
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 20),
-                            
-                            _buildDropdown('Course', selectedCourse, courses, Icons.school, (value) {
-                              if (value != null && value != selectedCourse) {
-                                setState(() {
-                                  selectedCourse = value;
-                                  isQrGenerated = false;
-                                  qrData = "";
-                                  _resetLectureSession();
-                                  _generateBatches();
-                                  _generateSemesters();
-                                  _loadAllSubjects();
-                                  
-                                  // Reset selections to first valid values
-                                  if (batches.isNotEmpty) selectedBatch = batches.first;
-                                  if (semesters.isNotEmpty) selectedSemester = semesters.first;
-                                  if (subjects.isNotEmpty) selectedSubject = subjects.first;
-                                });
-                              }
-                            }),
+
+                            _buildDropdown(
+                              'Course',
+                              selectedCourse,
+                              courses,
+                              Icons.school,
+                              (value) {
+                                if (value != null && value != selectedCourse) {
+                                  setState(() {
+                                    selectedCourse = value;
+                                    isQrGenerated = false;
+                                    qrData = "";
+                                    _resetLectureSession();
+                                    _generateBatches();
+                                    _generateSemesters();
+                                    _loadAllSubjects();
+
+                                    if (batches.isNotEmpty)
+                                      selectedBatch = batches.first;
+                                    if (semesters.isNotEmpty)
+                                      selectedSemester = semesters.first;
+                                    if (subjects.isNotEmpty)
+                                      selectedSubject = subjects.first;
+                                  });
+                                }
+                              },
+                            ),
                             const SizedBox(height: 16),
-                            
-                            _buildDropdown('Batch', selectedBatch, batches, Icons.group, (value) {
-                              if (value != null && value != selectedBatch) {
-                                setState(() {
-                                  selectedBatch = value;
-                                  isQrGenerated = false;
-                                  qrData = "";
-                                  _resetLectureSession();
-                                });
-                              }
-                            }),
+
+                            _buildDropdown(
+                              'Batch',
+                              selectedBatch,
+                              batches,
+                              Icons.group,
+                              (value) {
+                                if (value != null && value != selectedBatch) {
+                                  setState(() {
+                                    selectedBatch = value;
+                                    isQrGenerated = false;
+                                    qrData = "";
+                                    _resetLectureSession();
+                                  });
+                                }
+                              },
+                            ),
                             const SizedBox(height: 16),
-                            
-                            _buildDropdown('Semester', selectedSemester, semesters, Icons.grade, (value) {
-                              if (value != null && value != selectedSemester) {
-                                setState(() {
-                                  selectedSemester = value;
-                                  isQrGenerated = false;
-                                  qrData = "";
-                                  _resetLectureSession();
-                                });
-                              }
-                            }),
+
+                            _buildDropdown(
+                              'Semester',
+                              selectedSemester,
+                              semesters,
+                              Icons.grade,
+                              (value) {
+                                if (value != null &&
+                                    value != selectedSemester) {
+                                  setState(() {
+                                    selectedSemester = value;
+                                    isQrGenerated = false;
+                                    qrData = "";
+                                    _resetLectureSession();
+                                  });
+                                }
+                              },
+                            ),
                             const SizedBox(height: 16),
-                            
-                            _buildDropdown('Subject', selectedSubject, subjects, Icons.menu_book, (value) {
-                              if (value != null && value != selectedSubject) {
-                                setState(() {
-                                  selectedSubject = value;
-                                  isQrGenerated = false;
-                                  qrData = "";
-                                  _resetLectureSession();
-                                });
-                              }
-                            }),
+
+                            _buildDropdown(
+                              'Subject',
+                              selectedSubject,
+                              subjects,
+                              Icons.menu_book,
+                              (value) {
+                                if (value != null && value != selectedSubject) {
+                                  setState(() {
+                                    selectedSubject = value;
+                                    isQrGenerated = false;
+                                    qrData = "";
+                                    _resetLectureSession();
+                                  });
+                                }
+                              },
+                            ),
                             const SizedBox(height: 16),
-                            
+
                             InkWell(
                               onTap: _selectDate,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 16,
+                                ),
                                 decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey.shade300),
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                  ),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.calendar_today, color: Color(0xFF1A237E)),
+                                    const Icon(
+                                      Icons.calendar_today,
+                                      color: Color(0xFF1A237E),
+                                    ),
                                     const SizedBox(width: 12),
-                                    Expanded(child: Text('Date: ${_formatDate(selectedDate)}', style: const TextStyle(fontSize: 16))),
+                                    Expanded(
+                                      child: Text(
+                                        'Date: ${_formatDate(selectedDate)}',
+                                        style: const TextStyle(fontSize: 16),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
                                     const Icon(Icons.arrow_drop_down),
                                   ],
                                 ),
                               ),
                             ),
                             const SizedBox(height: 16),
-                            
-                            _buildDropdown('Time Slot', selectedTimeSlot, timeSlots, Icons.access_time, (value) {
-                              if (value != null && value != selectedTimeSlot) {
-                                setState(() {
-                                  selectedTimeSlot = value;
-                                  isQrGenerated = false;
-                                  qrData = "";
-                                  _resetLectureSession();
-                                });
-                              }
-                            }),
+
+                            _buildDropdown(
+                              'Time Slot',
+                              selectedTimeSlot,
+                              timeSlots,
+                              Icons.access_time,
+                              (value) {
+                                if (value != null &&
+                                    value != selectedTimeSlot) {
+                                  setState(() {
+                                    selectedTimeSlot = value;
+                                    isQrGenerated = false;
+                                    qrData = "";
+                                    _resetLectureSession();
+                                  });
+                                }
+                              },
+                            ),
                           ],
                         ),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 20),
-                    
+
                     ElevatedButton.icon(
                       onPressed: generateQR,
                       icon: const Icon(Icons.qr_code),
-                      label: const Text('Generate Attendance QR Code', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      label: const Text(
+                        'Generate Attendance QR Code',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1A237E),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
                       ),
                     ),
-                    
+
                     if (isQrGenerated && qrData.isNotEmpty) ...[
                       const SizedBox(height: 24),
                       _buildQRDisplayCard(),
@@ -636,33 +903,51 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildDropdown(String label, String value, List<String> items, IconData icon, Function(String?) onChanged) {
-    // Ensure we have unique items
+  Widget _buildDropdown(
+    String label,
+    String value,
+    List<String> items,
+    IconData icon,
+    Function(String?) onChanged,
+  ) {
     final uniqueItems = items.toSet().toList();
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF1A237E))),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: uniqueItems.contains(value) ? value : null,
-          decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: const Color(0xFF1A237E)),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF1A237E),
           ),
-          items: uniqueItems.map((String item) {
-            return DropdownMenuItem<String>(
-              value: item,
-              child: Text(
-                item,
-                overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: DropdownButtonFormField<String>(
+            value: uniqueItems.contains(value) ? value : null,
+            isExpanded: true,
+            decoration: InputDecoration(
+              prefixIcon: Icon(icon, color: const Color(0xFF1A237E)),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
               ),
-            );
-          }).toList(),
-          onChanged: onChanged,
-          isExpanded: true,
+            ),
+            items: uniqueItems.map((String item) {
+              return DropdownMenuItem<String>(
+                value: item,
+                child: Text(item, overflow: TextOverflow.ellipsis, maxLines: 1),
+              );
+            }).toList(),
+            onChanged: onChanged,
+          ),
         ),
       ],
     );
@@ -731,21 +1016,49 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
     );
   }
 
+  Widget _buildInfoRow(String emoji, String text) {
+    return Row(
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 16)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 14),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+          ),
+        ),
+      ],
+    );
+  }
+
   String _formatDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
 
   Widget _buildTeacherInfoCard() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF1A237E), Color(0xFF283593)]),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A237E), Color(0xFF283593)],
+        ),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
             child: const Icon(Icons.person, color: Colors.white, size: 30),
           ),
           const SizedBox(width: 15),
@@ -753,16 +1066,48 @@ class _TeacherScreenState extends State<TeacherScreen> with SingleTickerProvider
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(teacherName.isEmpty ? "Teacher" : teacherName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                Text(widget.userEmail, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12)),
-                if (teacherDepartment.isNotEmpty) Text(teacherDepartment, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14)),
+                Text(
+                  teacherName.isEmpty ? "Teacher" : teacherName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                Text(
+                  widget.userEmail,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 12,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                if (teacherDepartment.isNotEmpty)
+                  Text(
+                    teacherDepartment,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
               ],
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(20)),
-            child: const Text('Active', style: TextStyle(color: Colors.white, fontSize: 12)),
+            decoration: BoxDecoration(
+              color: Colors.green,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text(
+              'Active',
+              style: TextStyle(color: Colors.white, fontSize: 12),
+            ),
           ),
         ],
       ),

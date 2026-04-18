@@ -108,6 +108,8 @@ class TeacherLectureHistoryScreen extends StatelessWidget {
                 'timestamp': timestamp,
                 'students': <Map<String, dynamic>>[],
                 'studentCount': 0,
+                'batches': <String>{}, // Track unique batches
+                'courses': <String>{}, // Track unique courses
               };
             }
             
@@ -116,13 +118,24 @@ class TeacherLectureHistoryScreen extends StatelessWidget {
             final existingStudentIds = students.map((s) => s['studentId']).toList();
             
             if (!existingStudentIds.contains(data['studentId'])) {
+              final studentBatch = data['studentBatch'] ?? 'N/A';
+              final studentCourse = data['studentCourse'] ?? 'N/A';
+              
               students.add({
                 'studentId': data['studentId'],
                 'studentName': data['studentName'] ?? 'Unknown',
-                'studentRollNo': data['studentRollNo'] ?? '',
-                'studentBatch': data['studentBatch'] ?? '',
-                'studentCourse': data['studentCourse'] ?? '',
+                'studentRollNo': data['studentRollNo'] ?? 'N/A',
+                'studentBatch': studentBatch.isEmpty ? 'N/A' : studentBatch,
+                'studentCourse': studentCourse.isEmpty ? 'N/A' : studentCourse,
               });
+              
+              // Track unique batches and courses
+              if (studentBatch.isNotEmpty && studentBatch != 'N/A') {
+                (lecturesMap[lectureId]!['batches'] as Set<String>).add(studentBatch);
+              }
+              if (studentCourse.isNotEmpty && studentCourse != 'N/A') {
+                (lecturesMap[lectureId]!['courses'] as Set<String>).add(studentCourse);
+              }
             }
             
             lecturesMap[lectureId]!['studentCount'] = students.length;
@@ -235,13 +248,14 @@ class TeacherLectureHistoryScreen extends StatelessWidget {
   }
 
   Widget _buildLectureCard(BuildContext context, Map<String, dynamic> lecture) {
-    final lectureId = lecture['lectureId'];
     final subject = lecture['subject'];
     final date = lecture['date'];
     final className = lecture['className'];
     final timeSlot = lecture['timeSlot'];
     final studentCount = lecture['studentCount'];
     final students = lecture['students'] as List<Map<String, dynamic>>;
+    final batches = (lecture['batches'] as Set<String>).toList();
+    final courses = (lecture['courses'] as Set<String>).toList();
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -264,6 +278,11 @@ class TeacherLectureHistoryScreen extends StatelessWidget {
             Text("Date: $date"),
             if (timeSlot.isNotEmpty) Text("Time: $timeSlot"),
             if (className.isNotEmpty) Text("Class: $className"),
+            if (batches.isNotEmpty) 
+              Text("Batches: ${batches.join(', ')}", style: const TextStyle(fontSize: 12)),
+            if (courses.isNotEmpty) 
+              Text("Courses: ${courses.join(', ')}", style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 4),
             Container(
               margin: const EdgeInsets.only(top: 4),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -298,7 +317,6 @@ class TeacherLectureHistoryScreen extends StatelessWidget {
           ],
         ),
         children: [
-          // Students list
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Column(
@@ -330,7 +348,9 @@ class TeacherLectureHistoryScreen extends StatelessWidget {
                         ),
                       ),
                       title: Text(student['studentName']),
-                      subtitle: Text("Roll No: ${student['studentRollNo']} | Batch: ${student['studentBatch']}"),
+                      subtitle: Text(
+                        "Roll No: ${student['studentRollNo']} | Batch: ${student['studentBatch']} | Course: ${student['studentCourse']}",
+                      ),
                       trailing: const Icon(Icons.check_circle, color: Colors.green, size: 20),
                     );
                   },
@@ -418,6 +438,9 @@ class TeacherLectureHistoryScreen extends StatelessWidget {
   }
 
   void _showLectureDetails(BuildContext context, Map<String, dynamic> lecture) {
+    final batches = (lecture['batches'] as Set<String>).toList();
+    final courses = (lecture['courses'] as Set<String>).toList();
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -438,6 +461,10 @@ class TeacherLectureHistoryScreen extends StatelessWidget {
                 _buildDetailRow("Class ID:", lecture['classId']),
               if (lecture['department'] != null && lecture['department'].toString().isNotEmpty)
                 _buildDetailRow("Department:", lecture['department']),
+              if (batches.isNotEmpty)
+                _buildDetailRow("Batches:", batches.join(', ')),
+              if (courses.isNotEmpty)
+                _buildDetailRow("Courses:", courses.join(', ')),
               const Divider(),
               _buildDetailRow("Students Attended:", lecture['studentCount'].toString()),
             ],
@@ -470,165 +497,6 @@ class TeacherLectureHistoryScreen extends StatelessWidget {
             child: Text(value),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// Alternative: Simple Version without ExpansionTile
-class SimpleTeacherLectureHistoryScreen extends StatelessWidget {
-  final String teacherId;
-  final String teacherName;
-
-  const SimpleTeacherLectureHistoryScreen({
-    super.key,
-    required this.teacherId,
-    required this.teacherName,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final db = FirebaseFirestore.instance;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text("Lectures - $teacherName"),
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: db
-            .collection("attendance")
-            .where("teacherId", isEqualTo: teacherId)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          // Group by lecture
-          final Map<String, Map<String, dynamic>> lecturesMap = {};
-          
-          for (var doc in snapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            final lectureId = data['lectureId'] ?? '';
-            
-            if (!lecturesMap.containsKey(lectureId)) {
-              lecturesMap[lectureId] = {
-                'lectureId': lectureId,
-                'subject': data['subject'] ?? 'Unknown',
-                'date': data['date'] ?? '',
-                'timeSlot': data['timeSlot'] ?? '',
-                'className': data['className'] ?? '',
-                'studentCount': 0,
-                'students': <String>[],
-              };
-            }
-            
-            final students = lecturesMap[lectureId]!['students'] as List<String>;
-            if (!students.contains(data['studentId'])) {
-              students.add(data['studentId']);
-              lecturesMap[lectureId]!['studentCount'] = students.length;
-            }
-          }
-
-          final lectures = lecturesMap.values.toList();
-          lectures.sort((a, b) => b['date'].compareTo(a['date']));
-
-          return ListView.builder(
-            itemCount: lectures.length,
-            itemBuilder: (context, index) {
-              final lecture = lectures[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: ListTile(
-                  leading: const Icon(Icons.class_, color: Colors.blue),
-                  title: Text(
-                    lecture['subject'],
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Date: ${lecture['date']}"),
-                      if (lecture['timeSlot'].isNotEmpty) 
-                        Text("Time: ${lecture['timeSlot']}"),
-                      Text("Students: ${lecture['studentCount']}"),
-                    ],
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    _showLectureDetails(context, lecture);
-                  },
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  void _showLectureDetails(BuildContext context, Map<String, dynamic> lecture) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(lecture['subject']),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildDetailRow("Date:", lecture['date']),
-            _buildDetailRow("Time:", lecture['timeSlot']),
-            _buildDetailRow("Class:", lecture['className']),
-            _buildDetailRow("Students:", lecture['studentCount'].toString()),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-          ),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
-}
-
-// Usage example - how to navigate to this screen
-class TeacherDashboard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Teacher Dashboard")),
-      body: Center(
-        child: ElevatedButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => TeacherLectureHistoryScreen(
-                  teacherId: "current_teacher_id", // Replace with actual teacher ID
-                  teacherName: "John Doe", // Replace with actual teacher name
-                ),
-              ),
-            );
-          },
-          child: const Text("View Lecture History"),
-        ),
       ),
     );
   }
