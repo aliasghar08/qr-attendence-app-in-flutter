@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:qr_attendence/screens/attendence_screen.dart';
 import '../services/firestore_service.dart';
 
@@ -36,6 +39,14 @@ class _StudentScreenState extends State<StudentScreen>
 
   final firestoreService = FirestoreService();
 
+  // Location variables
+  Position? _currentPosition;
+  String _currentAddress = "";
+  bool _isLocationEnabled = false;
+  bool _isLoadingLocation = false;
+  bool _locationPermissionDenied = false;
+  bool _isRequestingPermission = false;
+
   // Student info
   String studentName = "";
   String studentRollNo = "";
@@ -46,6 +57,9 @@ class _StudentScreenState extends State<StudentScreen>
   String studentPhone = "";
   String studentDob = "";
   bool isLoading = true;
+
+  // Location tolerance in meters
+  static const double LOCATION_TOLERANCE_METERS = 100.0;
 
   @override
   void initState() {
@@ -65,6 +79,11 @@ class _StudentScreenState extends State<StudentScreen>
 
     _animationController.forward();
     _loadStudentInfo();
+    
+    // Delay permission request to ensure UI is loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestLocationPermission();
+    });
   }
 
   @override
@@ -72,6 +91,253 @@ class _StudentScreenState extends State<StudentScreen>
     cameraController.dispose();
     _animationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _requestLocationPermission() async {
+    if (_isRequestingPermission) return;
+    
+    setState(() {
+      _isRequestingPermission = true;
+      scannedData = "📍 Requesting location permission...";
+    });
+
+    try {
+      // First, check current status
+      final status = await Permission.location.status;
+      
+      print('Current location permission status: $status');
+      
+      if (status.isGranted) {
+        print('Location permission already granted');
+        setState(() {
+          _isLocationEnabled = true;
+          _locationPermissionDenied = false;
+          _isRequestingPermission = false;
+        });
+        await _getCurrentLocation();
+      } else if (status.isDenied) {
+        print('Location permission is denied, requesting...');
+        setState(() {
+          scannedData = "📍 Please allow location permission...";
+        });
+        
+        // Request permission
+        final result = await Permission.location.request();
+        print('Permission request result: $result');
+        
+        if (result.isGranted) {
+          print('Location permission granted');
+          setState(() {
+            _isLocationEnabled = true;
+            _locationPermissionDenied = false;
+            _isRequestingPermission = false;
+          });
+          await _getCurrentLocation();
+        } else if (result.isDenied) {
+          print('Location permission denied by user');
+          setState(() {
+            _isLocationEnabled = false;
+            _locationPermissionDenied = true;
+            _isRequestingPermission = false;
+            scannedData = "⚠️ Location permission denied.\nTap the location icon in app bar to enable.";
+          });
+          
+          // Show a snackbar explaining why permission is needed
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location permission is needed to mark attendance. Please enable it.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      } else if (status.isPermanentlyDenied) {
+        print('Location permission permanently denied');
+        setState(() {
+          _isLocationEnabled = false;
+          _locationPermissionDenied = true;
+          _isRequestingPermission = false;
+          scannedData = "⚠️ Location permission permanently denied.\nPlease enable in settings.";
+        });
+        _showLocationSettingsDialog();
+      } else if (status.isRestricted) {
+        print('Location permission is restricted');
+        setState(() {
+          _isLocationEnabled = false;
+          _locationPermissionDenied = true;
+          _isRequestingPermission = false;
+          scannedData = "⚠️ Location permission is restricted.";
+        });
+      }
+    } catch (e) {
+      print('Error requesting location permission: $e');
+      setState(() {
+        _isRequestingPermission = false;
+        scannedData = "❌ Error requesting location permission.";
+      });
+    }
+  }
+
+  void _showLocationSettingsDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Location Permission Required'),
+        content: const Text(
+          'Location permission is required to mark attendance. '
+          'Please enable location permission in settings to continue.\n\n'
+          'Go to Settings → Apps → Your App → Permissions → Location → Allow',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              openAppSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _getCurrentLocation() async {
+    if (!_isLocationEnabled) {
+      print('Location not enabled, requesting permission first');
+      await _requestLocationPermission();
+      if (!_isLocationEnabled) return false;
+    }
+    
+    setState(() {
+      _isLoadingLocation = true;
+      scannedData = "📍 Getting your location...";
+    });
+
+    try {
+      // Check if location services are enabled on device
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        print('Location services are disabled');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please enable location services (GPS)'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+        setState(() {
+          _isLoadingLocation = false;
+          scannedData = "⚠️ Please enable location services (GPS)";
+        });
+        return false;
+      }
+
+      // Check permission again
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        print('Permission denied, requesting...');
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('Permission denied after request');
+          setState(() {
+            _isLoadingLocation = false;
+            scannedData = "⚠️ Location permission denied";
+          });
+          return false;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        print('Permission permanently denied');
+        setState(() {
+          _isLoadingLocation = false;
+          scannedData = "⚠️ Location permission permanently denied";
+        });
+        _showLocationSettingsDialog();
+        return false;
+      }
+
+      print('Getting current position...');
+      // Get current position with timeout
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 15),
+      );
+      
+      print('Got position: ${position.latitude}, ${position.longitude}');
+      
+      setState(() {
+        _currentPosition = position;
+      });
+
+      // Get address from coordinates
+      try {
+        final placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+        
+        if (placemarks.isNotEmpty) {
+          final placemark = placemarks.first;
+          setState(() {
+            _currentAddress = [
+              placemark.name,
+              placemark.locality,
+              placemark.administrativeArea,
+              placemark.country,
+            ].where((e) => e != null && e.isNotEmpty).join(', ');
+          });
+          print('Got address: $_currentAddress');
+        }
+      } catch (e) {
+        print('Error getting address: $e');
+      }
+      
+      setState(() {
+        _isLoadingLocation = false;
+        scannedData = "✅ Location ready!\nYou can now scan QR code.";
+      });
+      
+      // Show success message briefly
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted && !isProcessing && !isScanned) {
+          setState(() {
+            scannedData = "Ready to scan";
+          });
+        }
+      });
+      
+      return true;
+    } catch (e) {
+      print('Error getting location: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString().substring(0, 100)}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      setState(() {
+        _isLoadingLocation = false;
+        scannedData = "❌ Could not get location.\nMake sure GPS is enabled.";
+      });
+      return false;
+    }
+  }
+
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    return Geolocator.distanceBetween(lat1, lon1, lat2, lon2);
   }
 
   Future<void> _loadStudentInfo() async {
@@ -296,7 +562,6 @@ class _StudentScreenState extends State<StudentScreen>
     );
   }
 
-  // NEW: Navigate to detailed attendance history screen
   void _navigateToAttendanceHistory() {
     Navigator.push(
       context,
@@ -309,12 +574,6 @@ class _StudentScreenState extends State<StudentScreen>
         ),
       ),
     );
-  }
-
-  // Keep the old method for backward compatibility but redirect to new screen
-  void _showAttendanceHistory() async {
-    // Navigate to the detailed attendance screen instead of showing dialog
-    _navigateToAttendanceHistory();
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
@@ -393,6 +652,72 @@ class _StudentScreenState extends State<StudentScreen>
     );
   }
 
+  void _showLocationMismatchDialog(double distance, String qrAddress, String studentAddress) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.location_off, color: Colors.red, size: 32),
+            const SizedBox(width: 10),
+            const Text('Location Mismatch!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'You must be in the lecture location to mark attendance.',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '📍 Distance: ${distance.toStringAsFixed(0)} meters away',
+                    style: TextStyle(color: Colors.red.shade700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Required: Within ${LOCATION_TOLERANCE_METERS.toStringAsFixed(0)} meters',
+                    style: TextStyle(color: Colors.orange.shade700),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text('Lecture Location:'),
+            Text(
+              qrAddress.isNotEmpty ? qrAddress : 'Unknown location',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            const Text('Your Location:'),
+            Text(
+              studentAddress.isNotEmpty ? studentAddress : 'Unknown location',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void onDetect(BarcodeCapture capture) async {
     if (isScanned || isProcessing) return;
 
@@ -405,6 +730,40 @@ class _StudentScreenState extends State<StudentScreen>
       return;
     }
 
+    // Check if location permission is denied
+    if (_locationPermissionDenied) {
+      setState(() {
+        scannedData = "❌ Location permission denied.\nTap the location icon to enable.";
+        isProcessing = false;
+      });
+      _showLocationSettingsDialog();
+      return;
+    }
+
+    // First, get current location if not available
+    if (_currentPosition == null) {
+      setState(() {
+        scannedData = "📍 Getting your location...";
+        isProcessing = true;
+      });
+      
+      final locationSuccess = await _getCurrentLocation();
+      if (!locationSuccess) {
+        setState(() {
+          scannedData = "❌ Unable to get your location.\nPlease enable location services.";
+          isProcessing = false;
+        });
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) resetScanner();
+        });
+        return;
+      }
+      
+      setState(() {
+        isProcessing = false;
+      });
+    }
+
     final List<Barcode> barcodes = capture.barcodes;
 
     for (final barcode in barcodes) {
@@ -413,7 +772,7 @@ class _StudentScreenState extends State<StudentScreen>
       if (code != null) {
         setState(() {
           isProcessing = true;
-          scannedData = "⏳ Processing...";
+          scannedData = "⏳ Verifying location and processing...";
         });
 
         try {
@@ -430,18 +789,18 @@ class _StudentScreenState extends State<StudentScreen>
           final department = decoded['department'] ?? '';
           final lectureId = decoded['lectureId'] ?? '';
           final expiry = decoded['expiry'] ?? '';
+          final qrLocation = decoded['location'];
 
+          // Check expiry
           if (expiry != null && expiry.isNotEmpty) {
             final expiryTime = DateTime.parse(expiry);
             final now = DateTime.now();
 
             if (now.isAfter(expiryTime)) {
               setState(() {
-                scannedData =
-                    "❌ QR Code Expired!\nThis QR code is no longer valid.";
+                scannedData = "❌ QR Code Expired!\nThis QR code is no longer valid.";
                 isProcessing = false;
               });
-
               Future.delayed(const Duration(seconds: 3), () {
                 if (mounted) resetScanner();
               });
@@ -449,16 +808,50 @@ class _StudentScreenState extends State<StudentScreen>
             }
           }
 
+          // Check location if QR code contains location data
+          if (qrLocation != null && _currentPosition != null) {
+            final qrLat = qrLocation['latitude'] as double;
+            final qrLon = qrLocation['longitude'] as double;
+            
+            final distance = _calculateDistance(
+              _currentPosition!.latitude,
+              _currentPosition!.longitude,
+              qrLat,
+              qrLon,
+            );
+
+            if (distance > LOCATION_TOLERANCE_METERS) {
+              final qrAddress = qrLocation['address'] ?? '';
+              setState(() {
+                scannedData = "❌ Location mismatch!\nYou are ${distance.toStringAsFixed(0)} meters away from the lecture location.";
+                isProcessing = false;
+              });
+              
+              _showLocationMismatchDialog(distance, qrAddress, _currentAddress);
+              
+              Future.delayed(const Duration(seconds: 4), () {
+                if (mounted) resetScanner();
+              });
+              return;
+            }
+          } else if (qrLocation == null) {
+            setState(() {
+              scannedData = "❌ Invalid QR Code!\nThis QR code doesn't contain location data.";
+              isProcessing = false;
+            });
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted) resetScanner();
+            });
+            return;
+          }
+
+          // Course validation
           if (studentCourse.isNotEmpty && course.isNotEmpty) {
             if (!_isCourseMatch(studentCourse, course)) {
               setState(() {
-                scannedData =
-                    "❌ This lecture is not for your course!\n"
-                    "Your Course: ${studentCourse.split(' ')[0]}\n"
-                    "Lecture Course: ${course.split(' ')[0]}";
+                scannedData = "❌ This lecture is not for your course!\nYour Course: ${studentCourse.split(' ')[0]}\nLecture Course: ${course.split(' ')[0]}";
                 isProcessing = false;
               });
-
               Future.delayed(const Duration(seconds: 3), () {
                 if (mounted) resetScanner();
               });
@@ -466,16 +859,13 @@ class _StudentScreenState extends State<StudentScreen>
             }
           }
 
+          // Batch validation
           if (studentBatch.isNotEmpty && batch.isNotEmpty) {
             if (!_isBatchMatch(studentBatch, batch)) {
               setState(() {
-                scannedData =
-                    "❌ This lecture is not for your batch!\n"
-                    "Your Batch: $studentBatch\n"
-                    "Lecture Batch: $batch";
+                scannedData = "❌ This lecture is not for your batch!\nYour Batch: $studentBatch\nLecture Batch: $batch";
                 isProcessing = false;
               });
-
               Future.delayed(const Duration(seconds: 3), () {
                 if (mounted) resetScanner();
               });
@@ -483,16 +873,13 @@ class _StudentScreenState extends State<StudentScreen>
             }
           }
 
+          // Semester validation
           if (studentSemester.isNotEmpty && semester.isNotEmpty) {
             if (!_isSemesterMatch(studentSemester, semester)) {
               setState(() {
-                scannedData =
-                    "❌ This lecture is not for your semester!\n"
-                    "Your Semester: $studentSemester\n"
-                    "Lecture Semester: $semester";
+                scannedData = "❌ This lecture is not for your semester!\nYour Semester: $studentSemester\nLecture Semester: $semester";
                 isProcessing = false;
               });
-
               Future.delayed(const Duration(seconds: 3), () {
                 if (mounted) resetScanner();
               });
@@ -502,7 +889,7 @@ class _StudentScreenState extends State<StudentScreen>
 
           final studentId = widget.userId;
 
-          // Check if already marked attendance using the dedicated method
+          // Check if already marked attendance
           final hasAttended = await firestoreService.hasStudentAttendedLecture(
             studentId: studentId,
             lectureId: lectureId,
@@ -510,22 +897,17 @@ class _StudentScreenState extends State<StudentScreen>
 
           if (hasAttended) {
             setState(() {
-              scannedData =
-                  "⚠️ Attendance already marked!\n"
-                  "Student: $studentName\n"
-                  "Subject: $subject\n"
-                  "You have already marked attendance for this lecture.";
+              scannedData = "⚠️ Attendance already marked!\nStudent: $studentName\nSubject: $subject";
               isProcessing = false;
             });
-
             _showAlreadyMarkedDialog(subject, teacherName);
-
             Future.delayed(const Duration(seconds: 3), () {
               if (mounted) resetScanner();
             });
             return;
           }
 
+          // Mark attendance with location data
           await firestoreService.markAttendance(
             classId: lectureId,
             lectureId: lectureId,
@@ -545,16 +927,23 @@ class _StudentScreenState extends State<StudentScreen>
               'studentCourse': studentCourse,
               'studentBatch': studentBatch,
               'studentSemester': studentSemester,
+              'studentLocation': {
+                'latitude': _currentPosition!.latitude,
+                'longitude': _currentPosition!.longitude,
+                'address': _currentAddress,
+              },
+              'qrLocation': qrLocation,
+              'distanceFromLecture': qrLocation != null ? _calculateDistance(
+                _currentPosition!.latitude,
+                _currentPosition!.longitude,
+                qrLocation['latitude'] as double,
+                qrLocation['longitude'] as double,
+              ) : null,
             },
           );
 
           setState(() {
-            scannedData =
-                "✅ Attendance Marked Successfully!\n"
-                "📚 Course: ${course.split(' ')[0]}\n"
-                "📖 Subject: $subject\n"
-                "👨‍🏫 Teacher: $teacherName\n"
-                "⏰ Time: $timeSlot";
+            scannedData = "✅ Attendance Marked Successfully!\n📚 Course: ${course.split(' ')[0]}\n📖 Subject: $subject\n👨‍🏫 Teacher: $teacherName\n📍 Location verified";
             isScanned = true;
             isProcessing = false;
           });
@@ -567,6 +956,12 @@ class _StudentScreenState extends State<StudentScreen>
             date: date,
             timeSlot: timeSlot,
             teacherName: teacherName,
+            distance: qrLocation != null ? _calculateDistance(
+              _currentPosition!.latitude,
+              _currentPosition!.longitude,
+              qrLocation['latitude'] as double,
+              qrLocation['longitude'] as double,
+            ) : null,
           );
         } catch (e) {
           print('Error processing QR: $e');
@@ -574,12 +969,10 @@ class _StudentScreenState extends State<StudentScreen>
             scannedData = "❌ Error: Invalid QR Code format";
             isProcessing = false;
           });
-
           Future.delayed(const Duration(seconds: 3), () {
             if (mounted) resetScanner();
           });
         }
-
         break;
       }
     }
@@ -601,6 +994,7 @@ class _StudentScreenState extends State<StudentScreen>
     required String date,
     required String timeSlot,
     required String teacherName,
+    double? distance,
   }) {
     String formattedDate = "Today";
     if (date.isNotEmpty) {
@@ -649,6 +1043,11 @@ class _StudentScreenState extends State<StudentScreen>
                     Text('👥 Batch: $batch | Semester: $semester'),
                     Text('📅 Date: $formattedDate'),
                     Text('⏰ Time: $timeSlot'),
+                    if (distance != null)
+                      Text(
+                        '📍 Distance from lecture: ${distance.toStringAsFixed(0)} meters',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                   ],
                 ),
               ),
@@ -680,6 +1079,32 @@ class _StudentScreenState extends State<StudentScreen>
                 ),
               ),
               const SizedBox(height: 12),
+              if (_currentAddress.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Location Details:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('📍 ${_currentAddress.split(',').first}'),
+                      Text(
+                        _currentAddress,
+                        style: const TextStyle(fontSize: 11),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 12),
               Text(
                 'Time: ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}',
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
@@ -700,6 +1125,15 @@ class _StudentScreenState extends State<StudentScreen>
     );
   }
 
+  // Manual refresh location method
+  Future<void> _refreshLocation() async {
+    setState(() {
+      _currentPosition = null;
+      _currentAddress = "";
+    });
+    await _requestLocationPermission();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -710,7 +1144,67 @@ class _StudentScreenState extends State<StudentScreen>
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          // NEW: Navigation icon to attendance history screen
+          // Location status indicator - Tappable to refresh
+          if (_currentPosition != null)
+            GestureDetector(
+              onTap: _refreshLocation,
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.location_on, size: 16, color: Colors.green.shade300),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Location OK',
+                      style: TextStyle(fontSize: 12, color: Colors.green.shade300),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (_locationPermissionDenied)
+            GestureDetector(
+              onTap: _requestLocationPermission,
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.location_off, size: 16, color: Colors.red.shade300),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Tap to enable',
+                      style: TextStyle(fontSize: 12, color: Colors.red.shade300),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (_isLoadingLocation)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.history),
             onPressed: _navigateToAttendanceHistory,
@@ -1092,6 +1586,14 @@ class _StudentScreenState extends State<StudentScreen>
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
+                              ),
+                            ),
+                          if (_isLoadingLocation)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 16),
+                              child: Text(
+                                'Getting location...',
+                                style: TextStyle(fontSize: 12, color: Colors.grey),
                               ),
                             ),
                         ],

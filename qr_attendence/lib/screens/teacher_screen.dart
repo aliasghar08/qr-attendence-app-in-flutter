@@ -5,6 +5,9 @@ import 'package:qr_attendence/screens/teacher_lectures_history.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class TeacherScreen extends StatefulWidget {
   final String userId;
@@ -34,6 +37,12 @@ class _TeacherScreenState extends State<TeacherScreen>
   int remainingSeconds = 30;
   late AnimationController _animationController;
   late Animation<double> _progressAnimation;
+
+  // Location variables
+  Position? _currentPosition;
+  String _currentAddress = "";
+  bool _isLocationEnabled = false;
+  bool _isLoadingLocation = false;
 
   // University-specific variables
   String selectedCourse = "";
@@ -68,7 +77,137 @@ class _TeacherScreenState extends State<TeacherScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadTeacherData();
+      _checkLocationPermission();
     });
+  }
+
+  Future<void> _checkLocationPermission() async {
+    final status = await Permission.location.status;
+
+    if (status.isDenied) {
+      final result = await Permission.location.request();
+      if (result.isGranted) {
+        setState(() {
+          _isLocationEnabled = true;
+        });
+        await _getCurrentLocation();
+      }
+    } else if (status.isGranted) {
+      setState(() {
+        _isLocationEnabled = true;
+      });
+      await _getCurrentLocation();
+    } else if (status.isPermanentlyDenied) {
+      _showLocationSettingsDialog();
+    }
+  }
+
+  void _showLocationSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Location Permission Required'),
+        content: const Text(
+          'Location permission is required to mark attendance with geotagging. '
+          'Please enable location permission in settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              openAppSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _getCurrentLocation() async {
+    if (!_isLocationEnabled) return;
+
+    setState(() {
+      _isLoadingLocation = true;
+    });
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enable location services'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        setState(() {
+          _isLoadingLocation = false;
+        });
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() {
+            _isLoadingLocation = false;
+          });
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        _showLocationSettingsDialog();
+        setState(() {
+          _isLoadingLocation = false;
+        });
+        return;
+      }
+
+      // Get current position
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        _currentPosition = position;
+      });
+
+      // Get address from coordinates
+      final placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (placemarks.isNotEmpty) {
+        final placemark = placemarks.first;
+        setState(() {
+          _currentAddress = [
+            placemark.name,
+            placemark.locality,
+            placemark.administrativeArea,
+            placemark.country,
+          ].where((e) => e != null && e.isNotEmpty).join(', ');
+        });
+      }
+    } catch (e) {
+      print('Error getting location: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error getting location: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoadingLocation = false;
+      });
+    }
   }
 
   Future<void> _loadTeacherData() async {
@@ -244,49 +383,41 @@ class _TeacherScreenState extends State<TeacherScreen>
       if (selectedCourse.contains('Bachelor') ||
           selectedCourse.contains('BSCS')) {
         uniqueSubjects.addAll([
-          // Semester 1
           'Programming Fundamentals',
           'Introduction to Computing',
           'Calculus',
           'English Composition',
           'Islamic Studies',
-          // Semester 2
           'Object Oriented Programming',
           'Digital Logic Design',
           'Discrete Structures',
           'Technical Writing',
           'Pakistan Studies',
-          // Semester 3
           'Data Structures & Algorithms',
           'Database Systems',
           'Computer Organization',
           'Probability & Statistics',
           'Linear Algebra',
-          // Semester 4
           'Operating Systems',
           'Software Engineering',
           'Theory of Automata',
           'Numerical Computing',
           'Multivariable Calculus',
-          // Semester 5
           'Computer Networks',
           'Web Development',
           'Artificial Intelligence',
           'Design & Analysis of Algorithms',
           'Professional Practices',
-          // Semester 6
           'Mobile App Development',
           'Cloud Computing',
           'Information Security',
           'Human Computer Interaction',
           'Data Mining',
-          // Semester 7
           'Machine Learning',
           'Network Security',
           'Parallel & Distributed Computing',
           'Digital Image Processing',
           'Final Year Project Part 1',
-          // Semester 8
           'Big Data Analytics',
           'Internet of Things',
           'Blockchain Technologies',
@@ -496,7 +627,7 @@ class _TeacherScreenState extends State<TeacherScreen>
     });
   }
 
-  void generateQR() {
+  void generateQR() async {
     if (selectedCourse.isEmpty ||
         selectedBatch.isEmpty ||
         selectedSemester.isEmpty ||
@@ -509,6 +640,20 @@ class _TeacherScreenState extends State<TeacherScreen>
         ),
       );
       return;
+    }
+
+    // Check if location is available
+    if (_currentPosition == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Getting location... Please wait and try again.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      await _getCurrentLocation();
+      if (_currentPosition == null) {
+        return;
+      }
     }
 
     try {
@@ -531,6 +676,13 @@ class _TeacherScreenState extends State<TeacherScreen>
         'lectureId': currentLectureId,
         'timestamp': now.toIso8601String(),
         'expiry': now.add(const Duration(seconds: 30)).toIso8601String(),
+        // Geotagging information
+        'location': {
+          'latitude': _currentPosition!.latitude,
+          'longitude': _currentPosition!.longitude,
+          'address': _currentAddress,
+          'accuracy': _currentPosition!.accuracy,
+        },
       };
 
       final generatedData = jsonEncode(lectureInfo);
@@ -550,7 +702,9 @@ class _TeacherScreenState extends State<TeacherScreen>
       if (mounted && !isLoading) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('QR Code Generated for "$selectedSubject"'),
+            content: Text(
+              'QR Code Generated for "$selectedSubject" with location',
+            ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -609,6 +763,34 @@ class _TeacherScreenState extends State<TeacherScreen>
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // Location status indicator
+          if (_currentPosition != null)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.location_on,
+                    size: 16,
+                    color: Colors.green.shade300,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Location OK',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.green.shade300,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.history_edu),
             onPressed: _navigateToLectureHistory,
@@ -641,6 +823,11 @@ class _TeacherScreenState extends State<TeacherScreen>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _buildTeacherInfoCard(),
+                    const SizedBox(height: 20),
+
+                    // Location Status Card
+                    _buildLocationStatusCard(),
+
                     const SizedBox(height: 20),
 
                     Card(
@@ -903,6 +1090,80 @@ class _TeacherScreenState extends State<TeacherScreen>
     );
   }
 
+  Widget _buildLocationStatusCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _isLocationEnabled && _currentPosition != null
+                      ? Icons.location_on
+                      : Icons.location_off,
+                  color: _isLocationEnabled && _currentPosition != null
+                      ? Colors.green
+                      : Colors.red,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Location Status',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                const Spacer(),
+                if (_isLoadingLocation)
+                  const SizedBox(
+                    height: 16,
+                    width: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (_currentPosition != null)
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: 18),
+                    onPressed: _getCurrentLocation,
+                    tooltip: 'Refresh Location',
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_currentPosition != null) ...[
+              Text(
+                '📍 ${_currentPosition!.latitude.toStringAsFixed(6)}, ${_currentPosition!.longitude.toStringAsFixed(6)}',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 4),
+              if (_currentAddress.isNotEmpty)
+                Text(
+                  '🏢 $_currentAddress',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                ),
+            ] else if (_isLoadingLocation)
+              const Text(
+                'Fetching location...',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              )
+            else
+              Text(
+                'Location not available. Tap refresh to enable.',
+                style: TextStyle(fontSize: 12, color: Colors.red.shade400),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildDropdown(
     String label,
     String value,
@@ -961,14 +1222,62 @@ class _TeacherScreenState extends State<TeacherScreen>
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            const Text('Active QR Code - Scan for Attendance', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+            const Text(
+              'Active QR Code - Scan for Attendance',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1A237E),
+              ),
+            ),
             const SizedBox(height: 8),
+
+            // Location info indicator (only added this)
+            if (_currentPosition != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 14,
+                        color: Colors.green.shade700,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Location captured',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Column(
                 children: [
-                  Text('📚 $selectedCourse', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    '📚 $selectedCourse',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   Text('📖 $selectedSubject'),
                   Text('👥 $selectedBatch | $selectedSemester'),
                   Text('📅 ${_formatDate(selectedDate)} | ⏰ $selectedTimeSlot'),
@@ -978,7 +1287,12 @@ class _TeacherScreenState extends State<TeacherScreen>
             ),
             const SizedBox(height: 16),
             RepaintBoundary(
-              child: QrImageView(data: qrData, size: 250, backgroundColor: Colors.white, errorCorrectionLevel: QrErrorCorrectLevel.M),
+              child: QrImageView(
+                data: qrData,
+                size: 250,
+                backgroundColor: Colors.white,
+                errorCorrectionLevel: QrErrorCorrectLevel.M,
+              ),
             ),
             const SizedBox(height: 16),
             AnimatedBuilder(
@@ -989,12 +1303,20 @@ class _TeacherScreenState extends State<TeacherScreen>
                     LinearProgressIndicator(
                       value: _progressAnimation.value,
                       backgroundColor: Colors.grey.shade200,
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.orange),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Colors.orange,
+                      ),
                       minHeight: 8,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     const SizedBox(height: 8),
-                    Text('QR Code refreshes in ${(_progressAnimation.value * 30).toInt()} seconds', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    Text(
+                      'QR Code refreshes in ${(_progressAnimation.value * 30).toInt()} seconds',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
                   ],
                 );
               },
@@ -1007,29 +1329,14 @@ class _TeacherScreenState extends State<TeacherScreen>
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF1A237E),
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildInfoRow(String emoji, String text) {
-    return Row(
-      children: [
-        Text(emoji, style: const TextStyle(fontSize: 16)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(fontSize: 14),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 2,
-          ),
-        ),
-      ],
     );
   }
 
