@@ -1,313 +1,383 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../services/attendance_service.dart';
+import '../theme/app_colors.dart';
+import '../widgets/custom_components.dart';
 
-class StudentAttendanceScreen extends StatelessWidget {
-  final String studentId;
-  final String studentName;
-  final String studentBatch;
-  final String studentCourse;
+class AttendenceScreen extends StatefulWidget {
+  final String userId;
+  final String userName;
+  final String userRole;
 
-  const StudentAttendanceScreen({
+  const AttendenceScreen({
     super.key,
-    required this.studentId,
-    required this.studentName,
-    required this.studentBatch,
-    required this.studentCourse,
+    required this.userId,
+    required this.userName,
+    required this.userRole,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final db = FirebaseFirestore.instance;
+  State<AttendenceScreen> createState() => _AttendenceScreenState();
+}
 
+class _AttendenceScreenState extends State<AttendenceScreen>
+    with SingleTickerProviderStateMixin {
+  final _attendanceService = AttendanceService();
+  late TabController _tabController;
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Color _getPercentageColor(double percentage) {
+    if (percentage >= 75.0) return AppColors.successDark;
+    if (percentage >= 50.0) return AppColors.warning;
+    return AppColors.error;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Attendance Records"),
-            Text(
-              "$studentName ($studentId)",
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
-            ),
+        title: const Text('My Attendance'),
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textSecondary,
+          indicatorColor: AppColors.primary,
+          indicatorWeight: 3,
+          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          tabs: const [
+            Tab(text: 'Subject Analytics', icon: Icon(Icons.pie_chart_rounded, size: 20)),
+            Tab(text: 'Timeline Logs', icon: Icon(Icons.timeline_rounded, size: 20)),
           ],
         ),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        // Use the document ID range query - NO INDEX NEEDED!
-        stream: db
-            .collection("attendance")
-            .where(FieldPath.documentId, isGreaterThanOrEqualTo: studentId)
-            .where(FieldPath.documentId, isLessThanOrEqualTo: '$studentId\uf8ff')
-            .snapshots(),
+      body: StreamBuilder<List<AttendanceRecord>>(
+        stream: _attendanceService.streamStudentAttendance(widget.userId),
         builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text("Error: ${snapshot.error}"),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {},
-                    child: const Text("Retry"),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          if (!snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // Sort manually
-          final attendanceRecords = snapshot.data!.docs.toList();
-          attendanceRecords.sort((a, b) {
-            final aData = a.data() as Map<String, dynamic>;
-            final bData = b.data() as Map<String, dynamic>;
-            final aTimestamp = aData['timestamp'] as Timestamp?;
-            final bTimestamp = bData['timestamp'] as Timestamp?;
-            
-            if (aTimestamp == null && bTimestamp == null) return 0;
-            if (aTimestamp == null) return 1;
-            if (bTimestamp == null) return -1;
-            
-            return bTimestamp.toDate().compareTo(aTimestamp.toDate());
-          });
+          final records = snapshot.data ?? [];
+          final subjectStats = _attendanceService.calculateSubjectStats(records);
+          final totalLectures = records.length;
+          final presentCount = records.where((r) => r.status.toLowerCase() == 'present').length;
+          final overallRate = totalLectures > 0 ? (presentCount / totalLectures) * 100 : 0.0;
 
-          if (attendanceRecords.isEmpty) {
+          if (records.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.calendar_today, size: 64, color: Colors.grey),
+                  Icon(Icons.event_busy_rounded, size: 64, color: Colors.grey.shade400),
                   const SizedBox(height: 16),
                   const Text(
-                    "No attendance records found",
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                    'No attendance records found yet.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "Student: $studentName",
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Scan a lecture QR code in class to begin tracking.',
+                    style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                   ),
                 ],
               ),
             );
           }
 
-          // Calculate statistics
-          final Map<String, Map<String, dynamic>> subjectStats = {};
-          for (var doc in attendanceRecords) {
-            final data = doc.data() as Map<String, dynamic>;
-            final subject = data['subject'] ?? 'Unknown Subject';
-            final status = data['status'] ?? 'absent';
-            
-            if (!subjectStats.containsKey(subject)) {
-              subjectStats[subject] = {
-                'total': 0,
-                'present': 0,
-                'absent': 0,
-              };
-            }
-            
-            subjectStats[subject]!['total'] = subjectStats[subject]!['total'] + 1;
-            if (status == 'present') {
-              subjectStats[subject]!['present'] = subjectStats[subject]!['present'] + 1;
-            } else {
-              subjectStats[subject]!['absent'] = subjectStats[subject]!['absent'] + 1;
-            }
-          }
-
-          return Column(
+          return TabBarView(
+            controller: _tabController,
             children: [
-              Card(
-                margin: const EdgeInsets.all(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Attendance Summary",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: subjectStats.entries.map((entry) {
-                          final subject = entry.key;
-                          final stats = entry.value;
-                          final percentage = stats['total'] > 0 
-                              ? (stats['present'] / stats['total']) * 100 
-                              : 0;
-                          final color = percentage >= 75 
-                              ? Colors.green 
-                              : (percentage >= 50 ? Colors.orange : Colors.red);
-                          
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: color.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: color.withOpacity(0.3)),
-                            ),
+              // TAB 1: Analytics & Subject Progress
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Summary Banner Card
+                    PlannerCard(
+                      padding: const EdgeInsets.all(20),
+                      gradient: AppColors.darkHeroGradient,
+                      child: Row(
+                        children: [
+                          Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              SizedBox(
+                                width: 74,
+                                height: 74,
+                                child: CircularProgressIndicator(
+                                  value: overallRate / 100,
+                                  strokeWidth: 8,
+                                  backgroundColor: Colors.white.withValues(alpha: 0.15),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    overallRate >= 75 ? AppColors.success : AppColors.warning,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '${overallRate.toStringAsFixed(0)}%',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 20),
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  subject,
+                                const Text(
+                                  'Overall Attendance Rate',
                                   style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    color: color,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  "${stats['present']}/${stats['total']} (${percentage.toStringAsFixed(1)}%)",
-                                  style: const TextStyle(fontSize: 12),
+                                  '$presentCount of $totalLectures sessions attended',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                StatusPill(
+                                  label: overallRate >= 75 ? 'ELIGIBLE FOR EXAMS' : 'ATTENDANCE SHORTAGE',
+                                  color: overallRate >= 75 ? AppColors.success : AppColors.error,
                                 ),
                               ],
                             ),
-                          );
-                        }).toList(),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    const SectionHeader(
+                      title: 'Subject Breakdown',
+                      subtitle: 'Attendance threshold required: 75%',
+                      icon: Icons.auto_graph_rounded,
+                    ),
+
+                    ...subjectStats.values.map((stat) {
+                      final percentage = stat.percentage;
+                      final color = _getPercentageColor(percentage);
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: PlannerCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: color.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(Icons.book_rounded, color: color, size: 20),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          stat.subject,
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        Text(
+                                          '${stat.present} present • ${stat.absent} absent',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    '${percentage.toStringAsFixed(1)}%',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: color,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: LinearProgressIndicator(
+                                  value: percentage / 100,
+                                  minHeight: 8,
+                                  backgroundColor: AppColors.border,
+                                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
                 ),
               ),
-              
-              Expanded(
-                child: ListView.builder(
-                  itemCount: attendanceRecords.length,
-                  itemBuilder: (context, index) {
-                    final data = attendanceRecords[index].data() as Map<String, dynamic>;
-                    
-                    final subject = data['subject'] ?? 'Unknown Subject';
-                    final status = data['status'] ?? 'absent';
-                    final timestamp = data['timestamp'] as Timestamp?;
-                    final date = timestamp != null ? timestamp.toDate() : DateTime.now();
-                    final teacherName = data['teacherName'] ?? '';
-                    final timeSlot = data['timeSlot'] ?? '';
-                    
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: status == 'present' ? Colors.green : Colors.red,
-                          child: Icon(
-                            status == 'present' ? Icons.check : Icons.close,
-                            color: Colors.white,
-                          ),
-                        ),
-                        title: Text(subject, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (teacherName.isNotEmpty) Text("Teacher: $teacherName"),
-                            if (timeSlot.isNotEmpty) Text("Time: $timeSlot"),
-                            const SizedBox(height: 4),
-                            Text(_formatDate(date), style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                          ],
-                        ),
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: status == 'present' ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            status.toUpperCase(),
-                            style: TextStyle(
-                              color: status == 'present' ? Colors.green : Colors.red,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                        onTap: () {
-                          _showAttendanceDetails(context, data, date);
-                        },
+
+              // TAB 2: Chronological Timeline
+              Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
+                    child: TextField(
+                      onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                      decoration: const InputDecoration(
+                        hintText: 'Filter timeline by subject or date...',
+                        prefixIcon: Icon(Icons.search_rounded),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Builder(
+                      builder: (context) {
+                        var filtered = records;
+                        if (_searchQuery.isNotEmpty) {
+                          filtered = records.where((r) {
+                            return r.subject.toLowerCase().contains(_searchQuery) ||
+                                r.date.toLowerCase().contains(_searchQuery) ||
+                                r.teacherName.toLowerCase().contains(_searchQuery);
+                          }).toList();
+                        }
+
+                        if (filtered.isEmpty) {
+                          return const Center(
+                            child: Text(
+                              'No matching logs found.',
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                          );
+                        }
+
+                        return ListView.separated(
+                          padding: const EdgeInsets.all(18),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final item = filtered[index];
+
+                            return PlannerCard(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.successLight,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.check_circle_outline_rounded,
+                                      color: AppColors.successDark,
+                                      size: 22,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.subject,
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        if (item.teacherName.isNotEmpty) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            'Instructor: ${item.teacherName}',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.event_note_rounded,
+                                                size: 13, color: AppColors.textMuted),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '${item.date} • ${item.timeSlot}',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (item.distanceMeters != null)
+                                    StatusPill(
+                                      label: '${item.distanceMeters!.toStringAsFixed(0)}m',
+                                      color: AppColors.secondaryDark,
+                                      showDot: false,
+                                      icon: Icons.near_me_rounded,
+                                    )
+                                  else
+                                    const StatusPill(
+                                      label: 'Verified',
+                                      color: AppColors.successDark,
+                                    ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ],
           );
         },
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    return "${date.day}/${date.month}/${date.year}";
-  }
-
-  String _formatTime(DateTime date) {
-    return "${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
-  }
-
-  void _showAttendanceDetails(BuildContext context, Map<String, dynamic> data, DateTime date) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Attendance Details"),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDetailRow("Student Name:", data['studentName'] ?? 'N/A'),
-              _buildDetailRow("Roll No:", data['studentRollNo'] ?? 'N/A'),
-              _buildDetailRow("Batch:", data['studentBatch'] ?? 'N/A'),
-              _buildDetailRow("Course:", data['studentCourse'] ?? 'N/A'),
-              const Divider(),
-              _buildDetailRow("Subject:", data['subject'] ?? 'N/A'),
-              _buildDetailRow("Class ID:", data['classId'] ?? 'N/A'),
-              _buildDetailRow("Lecture ID:", data['lectureId'] ?? 'N/A'),
-              if (data['teacherName'] != null && data['teacherName'].toString().isNotEmpty)
-                _buildDetailRow("Teacher:", data['teacherName']),
-              if (data['timeSlot'] != null && data['timeSlot'].toString().isNotEmpty)
-                _buildDetailRow("Time Slot:", data['timeSlot']),
-              const Divider(),
-              _buildDetailRow("Status:", data['status'] ?? 'absent'),
-              _buildDetailRow("Date:", _formatDate(date)),
-              _buildDetailRow("Time:", _formatTime(date)),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          Expanded(
-            child: Text(value),
-          ),
-        ],
       ),
     );
   }

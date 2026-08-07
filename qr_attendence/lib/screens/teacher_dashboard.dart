@@ -10,7 +10,6 @@ class TeacherDashboard extends StatefulWidget {
 }
 
 class _TeacherDashboardState extends State<TeacherDashboard> {
-
   final FirebaseFirestore db = FirebaseFirestore.instance;
 
   @override
@@ -20,7 +19,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       body: StreamBuilder(
         stream: db.collection("attendance").snapshots(),
         builder: (context, snapshot) {
-
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -34,8 +32,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           return ListView.builder(
             itemCount: classes.length,
             itemBuilder: (context, index) {
-
               final classId = classes[index].id;
+              final data = classes[index].data();
 
               return ListTile(
                 title: Text("Class: $classId"),
@@ -44,7 +42,12 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => LectureScreen(classId: classId),
+                      builder: (_) => LectureScreen(
+                        classId: classId,
+                        className: data['subject'] ?? classId,
+                        teacherId: data['teacherId'] ?? '',
+                        teacherName: data['teacherName'] ?? '',
+                      ),
                     ),
                   );
                 },

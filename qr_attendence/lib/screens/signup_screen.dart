@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
+import '../services/academic_service.dart';
+import '../theme/app_colors.dart';
+import '../widgets/custom_components.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -10,517 +12,489 @@ class SignupScreen extends StatefulWidget {
   State<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderStateMixin {
-  final nameController = TextEditingController();
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  final confirmPasswordController = TextEditingController();
-  final phoneController = TextEditingController();
-  final rollController = TextEditingController();
-  final semesterController = TextEditingController();
+class _SignupScreenState extends State<SignupScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _authService = AuthService();
+  final _academicService = AcademicService();
 
-  String role = "student";
-  String selectedDepartment = "Computer Science";
-  DateTime? selectedDob;
-  bool loading = false;
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _rollNoController = TextEditingController();
+  final _designationController = TextEditingController();
+
+  String _role = 'student'; // 'student' or 'teacher'
+  String _department = AcademicService.departments.first;
+  String? _course;
+  String? _batch;
+  String? _semester;
+
+  bool _isLoading = false;
   bool _isPasswordVisible = false;
-  bool _isConfirmPasswordVisible = false;
-  
-  // Password strength tracking
-  bool _hasMinLength = false;
-  bool _hasUppercase = false;
-  bool _hasLowercase = false;
-  bool _hasNumber = false;
-  bool _hasSpecialChar = false;
-  
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-
-  final authService = AuthService();
-
-  // Department list
-  final List<String> departments = [
-    "Computer Science",
-    "Software Engineering",
-    "Information Technology",
-    "Electrical Engineering",
-    "Mechanical Engineering",
-    "Civil Engineering",
-    "Business Administration",
-    "Mathematics",
-    "Physics",
-    "Chemistry",
-    "Biology",
-    "Psychology",
-    "Economics",
-    "English Literature",
-    "Media Studies",
-  ];
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
-    );
-    
-    _slideAnimation = Tween<Offset>(begin: Offset(0, 0.5), end: Offset.zero).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
-    );
-    
-    _animationController.forward();
-    
-    // Add listener to password controller for real-time strength validation
-    passwordController.addListener(_updatePasswordStrength);
+    _updateCourseList();
   }
 
-  void _updatePasswordStrength() {
+  void _updateCourseList() {
+    final courses = _academicService.getCoursesForDepartment(_department);
     setState(() {
-      final password = passwordController.text;
-      _hasMinLength = password.length >= 8;
-      _hasUppercase = password.contains(RegExp(r'[A-Z]'));
-      _hasLowercase = password.contains(RegExp(r'[a-z]'));
-      _hasNumber = password.contains(RegExp(r'[0-9]'));
-      _hasSpecialChar = password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+      _course = courses.isNotEmpty ? courses.first : null;
+      _updateBatchAndSemesters();
     });
   }
 
-  bool _isPasswordValid() {
-    return _hasMinLength && _hasUppercase && _hasLowercase && _hasNumber && _hasSpecialChar;
-  }
-
-  String? _validateEmail(String? email) {
-    if (email == null || email.isEmpty) {
-      return 'Email is required';
+  void _updateBatchAndSemesters() {
+    if (_course != null) {
+      final batches = _academicService.generateBatches(_course!);
+      final semesters = _academicService.generateSemesters(_course!);
+      setState(() {
+        _batch = batches.isNotEmpty ? batches.first : null;
+        _semester = semesters.isNotEmpty ? semesters.first : null;
+      });
     }
-    
-    // Regular expression for email validation
-    final emailRegex = RegExp(
-      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
-    );
-    
-    if (!emailRegex.hasMatch(email)) {
-      return 'Please enter a valid email address';
-    }
-    
-    // Check for common email providers (optional)
-    final domain = email.split('@').last.toLowerCase();
-    if (!domain.contains('.') || domain.length < 4) {
-      return 'Please enter a valid email domain';
-    }
-    
-    return null;
-  }
-
-  String? _validatePassword(String? password) {
-    if (password == null || password.isEmpty) {
-      return 'Password is required';
-    }
-    
-    if (password.length < 8) {
-      return 'Password must be at least 8 characters long';
-    }
-    
-    if (!password.contains(RegExp(r'[A-Z]'))) {
-      return 'Password must contain at least one uppercase letter';
-    }
-    
-    if (!password.contains(RegExp(r'[a-z]'))) {
-      return 'Password must contain at least one lowercase letter';
-    }
-    
-    if (!password.contains(RegExp(r'[0-9]'))) {
-      return 'Password must contain at least one number';
-    }
-    
-    if (!password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) {
-      return 'Password must contain at least one special character';
-    }
-    
-    return null;
-  }
-
-  String? _validateConfirmPassword(String? confirmPassword) {
-    if (confirmPassword == null || confirmPassword.isEmpty) {
-      return 'Please confirm your password';
-    }
-    
-    if (confirmPassword != passwordController.text) {
-      return 'Passwords do not match';
-    }
-    
-    return null;
-  }
-
-  String? _validateName(String? name) {
-    if (name == null || name.isEmpty) {
-      return 'Full name is required';
-    }
-    
-    if (name.length < 3) {
-      return 'Name must be at least 3 characters';
-    }
-    
-    if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(name)) {
-      return 'Name should only contain letters and spaces';
-    }
-    
-    return null;
-  }
-
-  String? _validatePhone(String? phone) {
-    if (phone == null || phone.isEmpty) {
-      return 'Phone number is required';
-    }
-    
-    if (phone.length < 10 || phone.length > 15) {
-      return 'Phone number must be between 10-15 digits';
-    }
-    
-    if (!RegExp(r'^[0-9+\-\s]+$').hasMatch(phone)) {
-      return 'Please enter a valid phone number';
-    }
-    
-    return null;
-  }
-
-  String? _validateRollNumber(String? rollNo) {
-    if (role == "student") {
-      if (rollNo == null || rollNo.isEmpty) {
-        return 'Roll number is required';
-      }
-      
-      if (rollNo.length < 3) {
-        return 'Please enter a valid roll number';
-      }
-    }
-    return null;
-  }
-
-  String? _validateSemester(String? semester) {
-    if (role == "student") {
-      if (semester == null || semester.isEmpty) {
-        return 'Semester is required';
-      }
-      
-      final semesterNum = int.tryParse(semester);
-      if (semesterNum == null || semesterNum < 1 || semesterNum > 8) {
-        return 'Please enter a valid semester (1-8)';
-      }
-    }
-    return null;
   }
 
   @override
   void dispose() {
-    nameController.dispose();
-    emailController.dispose();
-    passwordController.dispose();
-    confirmPasswordController.dispose();
-    phoneController.dispose();
-    rollController.dispose();
-    semesterController.dispose();
-    _animationController.dispose();
-    passwordController.removeListener(_updatePasswordStrength);
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _rollNoController.dispose();
+    _designationController.dispose();
     super.dispose();
   }
 
-  Future<void> pickDob() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: DateTime(2005),
-      firstDate: DateTime(1980),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: const Color(0xFF1A237E),
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Colors.black,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
+  Future<void> _handleSignup() async {
+    if (!_formKey.currentState!.validate()) return;
 
-    if (date != null) {
-      setState(() {
-        selectedDob = date;
-      });
-    }
-  }
-
-  void signup() async {
-    // Validate all fields
-    final nameError = _validateName(nameController.text.trim());
-    if (nameError != null) {
-      _showErrorSnackBar(nameError);
-      return;
-    }
-    
-    final emailError = _validateEmail(emailController.text.trim());
-    if (emailError != null) {
-      _showErrorSnackBar(emailError);
-      return;
-    }
-    
-    final passwordError = _validatePassword(passwordController.text);
-    if (passwordError != null) {
-      _showErrorSnackBar(passwordError);
-      return;
-    }
-    
-    final confirmPasswordError = _validateConfirmPassword(confirmPasswordController.text);
-    if (confirmPasswordError != null) {
-      _showErrorSnackBar(confirmPasswordError);
-      return;
-    }
-    
-    final phoneError = _validatePhone(phoneController.text.trim());
-    if (phoneError != null) {
-      _showErrorSnackBar(phoneError);
-      return;
-    }
-    
-    if (selectedDepartment.isEmpty) {
-      _showErrorSnackBar('Please select your department');
-      return;
-    }
-    
-    if (selectedDob == null) {
-      _showErrorSnackBar('Please select your date of birth');
-      return;
-    }
-    
-    final rollError = _validateRollNumber(rollController.text.trim());
-    if (rollError != null) {
-      _showErrorSnackBar(rollError);
-      return;
-    }
-    
-    final semesterError = _validateSemester(semesterController.text.trim());
-    if (semesterError != null) {
-      _showErrorSnackBar(semesterError);
-      return;
-    }
-
-    setState(() => loading = true);
+    setState(() => _isLoading = true);
 
     try {
-      final user = await authService.signup(
-        emailController.text.trim(),
-        passwordController.text.trim(),
+      final user = await _authService.signup(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
       );
 
-      final uid = user!.uid;
+      if (user == null) {
+        throw Exception('Registration failed. Please try again.');
+      }
 
-      await FirebaseFirestore.instance.collection("users").doc(uid).set({
-        "name": nameController.text.trim(),
-        "email": emailController.text.trim().toLowerCase(),
-        "phone": phoneController.text.trim(),
-        "role": role,
-        "department": selectedDepartment,
-        "rollNo": role == "student" ? rollController.text.trim().toUpperCase() : null,
-        "semester": role == "student" ? semesterController.text.trim() : null,
-        "dob": selectedDob?.toIso8601String(),
-        "createdAt": DateTime.now().toIso8601String(),
-      });
+      final userData = {
+        'uid': user.uid,
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'role': _role,
+        'department': _department,
+        'createdAt': FieldValue.serverTimestamp(),
+      };
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 12),
-                const Expanded(child: Text('Account created successfully! Please login.')),
-              ],
-            ),
-            backgroundColor: Colors.green.shade700,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            duration: const Duration(seconds: 2),
+      if (_role == 'student') {
+        userData['rollNo'] = _rollNoController.text.trim();
+        userData['course'] = _course ?? '';
+        userData['batch'] = _batch ?? '';
+        userData['semester'] = _semester ?? '';
+      } else {
+        userData['designation'] = _designationController.text.trim().isEmpty
+            ? 'Faculty Member'
+            : _designationController.text.trim();
+      }
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set(userData);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle_outline_rounded, color: Colors.white),
+              SizedBox(width: 10),
+              Text('Account created successfully! Please sign in.'),
+            ],
           ),
-        );
-        
-        await Future.delayed(const Duration(seconds: 2));
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/login');
-        }
-      }
-
-    } catch (e) {
-      if (mounted) {
-        _showErrorSnackBar(e.toString());
-      }
-    } finally {
-      if (mounted) {
-        setState(() => loading = false);
-      }
-    }
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.white),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 2,
-              ),
-            ),
-          ],
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        backgroundColor: Colors.red.shade700,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 3),
-      ),
-    );
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString().replaceAll('Exception:', '').trim();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Colors.white),
+              const SizedBox(width: 10),
+              Expanded(child: Text(msg)),
+            ],
+          ),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final courses = _academicService.getCoursesForDepartment(_department);
+    final batches = _course != null ? _academicService.generateBatches(_course!) : <String>[];
+    final semesters = _course != null ? _academicService.generateSemesters(_course!) : <String>[];
+
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.purple.shade50,
-              Colors.white,
-              Colors.blue.shade50,
-            ],
-          ),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Create Account'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () => Navigator.pop(context),
         ),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Form(
+                key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildHeader(),
-                    const SizedBox(height: 32),
-                    
-                    if (loading)
-                      LinearProgressIndicator(
-                        value: null,
-                        backgroundColor: Colors.grey.shade200,
-                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1A237E)),
+                    // Role Segmented Tabs
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColors.borderLight,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.border),
                       ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    _buildAnimatedTextField(
-                      controller: nameController,
-                      label: 'Full Name',
-                      icon: Icons.person_outline,
-                      keyboardType: TextInputType.name,
-                      validator: _validateName,
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    _buildAnimatedTextField(
-                      controller: emailController,
-                      label: 'Email Address',
-                      icon: Icons.email_outlined,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: _validateEmail,
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    _buildAnimatedPasswordField(),
-                    
-                    const SizedBox(height: 16),
-                    
-                    _buildAnimatedConfirmPasswordField(),
-                    
-                    const SizedBox(height: 16),
-                    
-                    _buildPasswordStrengthIndicator(),
-                    
-                    const SizedBox(height: 16),
-                    
-                    _buildAnimatedTextField(
-                      controller: phoneController,
-                      label: 'Phone Number',
-                      icon: Icons.phone_outlined,
-                      keyboardType: TextInputType.phone,
-                      validator: _validatePhone,
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    _buildAnimatedRoleDropdown(),
-                    
-                    const SizedBox(height: 16),
-                    
-                    _buildAnimatedDepartmentDropdown(),
-                    
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      child: role == "student"
-                          ? Column(
-                              key: const ValueKey('student_fields'),
-                              children: [
-                                const SizedBox(height: 16),
-                                _buildAnimatedTextField(
-                                  controller: rollController,
-                                  label: 'Roll Number',
-                                  icon: Icons.numbers_outlined,
-                                  keyboardType: TextInputType.text,
-                                  validator: _validateRollNumber,
-                                  textCapitalization: TextCapitalization.characters,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setState(() => _role = 'student'),
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 11),
+                                decoration: BoxDecoration(
+                                  color: _role == 'student' ? Colors.white : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: _role == 'student'
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.05),
+                                            blurRadius: 4,
+                                          ),
+                                        ]
+                                      : null,
                                 ),
-                                const SizedBox(height: 16),
-                                _buildAnimatedTextField(
-                                  controller: semesterController,
-                                  label: 'Semester',
-                                  icon: Icons.grade_outlined,
-                                  keyboardType: TextInputType.number,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.digitsOnly,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.school_rounded,
+                                      size: 18,
+                                      color: _role == 'student'
+                                          ? AppColors.primary
+                                          : AppColors.textMuted,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Student Account',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: _role == 'student'
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                        color: _role == 'student'
+                                            ? AppColors.primary
+                                            : AppColors.textSecondary,
+                                      ),
+                                    ),
                                   ],
-                                  validator: _validateSemester,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setState(() => _role = 'teacher'),
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 11),
+                                decoration: BoxDecoration(
+                                  color: _role == 'teacher' ? Colors.white : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: _role == 'teacher'
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.05),
+                                            blurRadius: 4,
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.co_present_rounded,
+                                      size: 18,
+                                      color: _role == 'teacher'
+                                          ? AppColors.primary
+                                          : AppColors.textMuted,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Faculty Account',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: _role == 'teacher'
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                        color: _role == 'teacher'
+                                            ? AppColors.primary
+                                            : AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Main Details Card
+                    PlannerCard(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Personal & Login Details',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Full Name
+                          TextFormField(
+                            controller: _nameController,
+                            decoration: const InputDecoration(
+                              labelText: 'Full Name',
+                              hintText: 'e.g. Dr. John Doe / Alex Smith',
+                              prefixIcon: Icon(Icons.person_outline_rounded),
+                            ),
+                            validator: (val) =>
+                                val == null || val.trim().isEmpty ? 'Please enter your name' : null,
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Email
+                          TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: const InputDecoration(
+                              labelText: 'Email Address',
+                              hintText: 'name@university.edu',
+                              prefixIcon: Icon(Icons.mail_outline_rounded),
+                            ),
+                            validator: (val) {
+                              if (val == null || val.trim().isEmpty) return 'Enter your email';
+                              if (!val.contains('@')) return 'Enter a valid email address';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Password
+                          TextFormField(
+                            controller: _passwordController,
+                            obscureText: !_isPasswordVisible,
+                            decoration: InputDecoration(
+                              labelText: 'Password',
+                              hintText: 'Min 6 characters',
+                              prefixIcon: const Icon(Icons.lock_outline_rounded),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _isPasswordVisible
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                ),
+                                onPressed: () =>
+                                    setState(() => _isPasswordVisible = !_isPasswordVisible),
+                              ),
+                            ),
+                            validator: (val) =>
+                                val == null || val.length < 6 ? 'Password must be at least 6 characters' : null,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Academic Details Card
+                    PlannerCard(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _role == 'teacher' ? 'Faculty Assignment' : 'Academic Information',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Department Dropdown
+                          DropdownButtonFormField<String>(
+                            initialValue: _department,
+                            decoration: const InputDecoration(
+                              labelText: 'Department',
+                              prefixIcon: Icon(Icons.apartment_rounded),
+                            ),
+                            isExpanded: true,
+                            items: AcademicService.departments.map((dept) {
+                              return DropdownMenuItem(
+                                value: dept,
+                                child: Text(dept, overflow: TextOverflow.ellipsis),
+                              );
+                            }).toList(),
+                            onChanged: (newDept) {
+                              if (newDept != null) {
+                                setState(() {
+                                  _department = newDept;
+                                  _updateCourseList();
+                                });
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 14),
+
+                          if (_role == 'student') ...[
+                            // Degree Course
+                            DropdownButtonFormField<String>(
+                              initialValue: courses.contains(_course) ? _course : (courses.isNotEmpty ? courses.first : null),
+                              decoration: const InputDecoration(
+                                labelText: 'Degree / Program',
+                                prefixIcon: Icon(Icons.school_outlined),
+                              ),
+                              isExpanded: true,
+                              items: courses.map((c) {
+                                return DropdownMenuItem(
+                                  value: c,
+                                  child: Text(c, overflow: TextOverflow.ellipsis),
+                                );
+                              }).toList(),
+                              onChanged: (newCourse) {
+                                if (newCourse != null) {
+                                  setState(() {
+                                    _course = newCourse;
+                                    _updateBatchAndSemesters();
+                                  });
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Roll Number
+                            TextFormField(
+                              controller: _rollNoController,
+                              decoration: const InputDecoration(
+                                labelText: 'Student Roll No / ID',
+                                hintText: 'e.g. 21-CS-042',
+                                prefixIcon: Icon(Icons.badge_outlined),
+                              ),
+                              validator: (val) =>
+                                  val == null || val.trim().isEmpty ? 'Enter your roll number' : null,
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Batch and Semester in row
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue: batches.contains(_batch) ? _batch : (batches.isNotEmpty ? batches.first : null),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Batch',
+                                      prefixIcon: Icon(Icons.group_outlined),
+                                    ),
+                                    isExpanded: true,
+                                    items: batches.map((b) {
+                                      return DropdownMenuItem(
+                                        value: b,
+                                        child: Text(b, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+                                      );
+                                    }).toList(),
+                                    onChanged: (b) => setState(() => _batch = b),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue: semesters.contains(_semester) ? _semester : (semesters.isNotEmpty ? semesters.first : null),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Semester',
+                                      prefixIcon: Icon(Icons.calendar_today_outlined),
+                                    ),
+                                    isExpanded: true,
+                                    items: semesters.map((s) {
+                                      return DropdownMenuItem(
+                                        value: s,
+                                        child: Text(s, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+                                      );
+                                    }).toList(),
+                                    onChanged: (s) => setState(() => _semester = s),
+                                  ),
                                 ),
                               ],
-                            )
-                          : const SizedBox.shrink(),
+                            ),
+                          ] else ...[
+                            // Designation for faculty
+                            TextFormField(
+                              controller: _designationController,
+                              decoration: const InputDecoration(
+                                labelText: 'Designation / Title',
+                                hintText: 'e.g. Assistant Professor, Lecturer',
+                                prefixIcon: Icon(Icons.work_outline_rounded),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    _buildDobPicker(),
-                    
                     const SizedBox(height: 24),
-                    
-                    _buildSignUpButton(),
-                    
-                    const SizedBox(height: 20),
-                    
-                    _buildLoginLink(),
-                    
+
+                    // Submit Button
+                    PlannerButton(
+                      text: 'Create Account',
+                      icon: Icons.person_add_rounded,
+                      isLoading: _isLoading,
+                      onPressed: _handleSignup,
+                    ),
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -529,614 +503,6 @@ class _SignupScreenState extends State<SignupScreen> with SingleTickerProviderSt
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return TweenAnimationBuilder(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 600),
-      builder: (context, double value, child) {
-        return Transform.scale(
-          scale: value,
-          child: child,
-        );
-      },
-      child: Column(
-        children: [
-          Container(
-            height: 80,
-            width: 80,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Colors.purple, Colors.blue],
-              ),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.purple.withOpacity(0.3),
-                  blurRadius: 20,
-                  spreadRadius: 5,
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.person_add_alt_1,
-              size: 40,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Create Account',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1A237E),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Join our learning community',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade600,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAnimatedTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType? keyboardType,
-    bool obscureText = false,
-    Widget? suffixIcon,
-    String? hintText,
-    List<TextInputFormatter>? inputFormatters,
-    String? Function(String?)? validator,
-    TextCapitalization textCapitalization = TextCapitalization.none,
-  }) {
-    return TweenAnimationBuilder(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 500),
-      builder: (context, double value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: TextFormField(
-          controller: controller,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          inputFormatters: inputFormatters,
-          textCapitalization: textCapitalization,
-          validator: validator,
-          decoration: InputDecoration(
-            labelText: label,
-            hintText: hintText,
-            labelStyle: TextStyle(color: Colors.grey.shade600),
-            prefixIcon: Icon(icon, color: const Color(0xFF1A237E)),
-            suffixIcon: suffixIcon,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(15),
-              borderSide: BorderSide.none,
-            ),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnimatedPasswordField() {
-    return TweenAnimationBuilder(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 500),
-      builder: (context, double value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: TextFormField(
-          controller: passwordController,
-          obscureText: !_isPasswordVisible,
-          keyboardType: TextInputType.text,
-          validator: (value) => _validatePassword(value),
-          decoration: InputDecoration(
-            labelText: 'Password',
-            hintText: 'Minimum 8 characters',
-            labelStyle: TextStyle(color: Colors.grey.shade600),
-            prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF1A237E)),
-            suffixIcon: IconButton(
-              icon: Icon(
-                _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
-                color: Colors.grey.shade600,
-              ),
-              onPressed: () {
-                setState(() {
-                  _isPasswordVisible = !_isPasswordVisible;
-                });
-              },
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(15),
-              borderSide: BorderSide.none,
-            ),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnimatedConfirmPasswordField() {
-    return TweenAnimationBuilder(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 500),
-      builder: (context, double value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: TextFormField(
-          controller: confirmPasswordController,
-          obscureText: !_isConfirmPasswordVisible,
-          keyboardType: TextInputType.text,
-          validator: (value) => _validateConfirmPassword(value),
-          decoration: InputDecoration(
-            labelText: 'Confirm Password',
-            hintText: 'Re-enter your password',
-            labelStyle: TextStyle(color: Colors.grey.shade600),
-            prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF1A237E)),
-            suffixIcon: IconButton(
-              icon: Icon(
-                _isConfirmPasswordVisible ? Icons.visibility_off : Icons.visibility,
-                color: Colors.grey.shade600,
-              ),
-              onPressed: () {
-                setState(() {
-                  _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
-                });
-              },
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(15),
-              borderSide: BorderSide.none,
-            ),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPasswordStrengthIndicator() {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 4,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(2),
-              color: Colors.grey.shade200,
-            ),
-            child: Row(
-              children: [
-                _buildStrengthBar(_hasMinLength, Colors.blue),
-                _buildStrengthBar(_hasUppercase, Colors.blue),
-                _buildStrengthBar(_hasLowercase, Colors.blue),
-                _buildStrengthBar(_hasNumber, Colors.blue),
-                _buildStrengthBar(_hasSpecialChar, Colors.blue),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _getPasswordStrengthMessage(),
-            style: TextStyle(
-              fontSize: 12,
-              color: _getPasswordStrengthColor(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStrengthBar(bool isValid, Color color) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 1),
-        height: 4,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(2),
-          color: isValid ? color : Colors.grey.shade200,
-        ),
-      ),
-    );
-  }
-
-  String _getPasswordStrengthMessage() {
-    if (_isPasswordValid()) {
-      return '✓ Strong password!';
-    } else if (_hasMinLength || _hasUppercase || _hasLowercase || _hasNumber || _hasSpecialChar) {
-      final missing = <String>[];
-      if (!_hasMinLength) missing.add('8+ chars');
-      if (!_hasUppercase) missing.add('uppercase');
-      if (!_hasLowercase) missing.add('lowercase');
-      if (!_hasNumber) missing.add('number');
-      if (!_hasSpecialChar) missing.add('special char');
-      return 'Weak password - Missing: ${missing.join(", ")}';
-    } else {
-      return 'Enter a strong password';
-    }
-  }
-
-  Color _getPasswordStrengthColor() {
-    if (_isPasswordValid()) {
-      return Colors.green;
-    } else if (_hasMinLength || _hasUppercase || _hasLowercase || _hasNumber || _hasSpecialChar) {
-      return Colors.orange;
-    } else {
-      return Colors.grey;
-    }
-  }
-
-  Widget _buildAnimatedRoleDropdown() {
-    return TweenAnimationBuilder(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 500),
-      builder: (context, double value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: DropdownButtonFormField<String>(
-          value: role,
-          isExpanded: true,
-          items: const [
-            DropdownMenuItem(
-              value: "student",
-              child: Row(
-                children: [
-                  Icon(Icons.school, size: 20, color: Color(0xFF1A237E)),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      "Student",
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            DropdownMenuItem(
-              value: "teacher",
-              child: Row(
-                children: [
-                  Icon(Icons.cast_for_education, size: 20, color: Color(0xFF1A237E)),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      "Teacher",
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          onChanged: (value) {
-            setState(() => role = value!);
-          },
-          decoration: InputDecoration(
-            labelText: "Role",
-            labelStyle: TextStyle(color: Colors.grey.shade600),
-            prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF1A237E)),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(15),
-              borderSide: BorderSide.none,
-            ),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(vertical: 5, horizontal: 15),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnimatedDepartmentDropdown() {
-    return TweenAnimationBuilder(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 500),
-      builder: (context, double value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: DropdownButtonFormField<String>(
-          value: selectedDepartment,
-          isExpanded: true,
-          items: departments.map<DropdownMenuItem<String>>((String department) {
-            return DropdownMenuItem<String>(
-              value: department,
-              child: Row(
-                children: [
-                  Icon(Icons.business_center, size: 20, color: const Color(0xFF1A237E)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      department,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-          onChanged: (String? newValue) {
-            if (newValue != null) {
-              setState(() {
-                selectedDepartment = newValue;
-              });
-            }
-          },
-          decoration: InputDecoration(
-            labelText: "Department",
-            labelStyle: TextStyle(color: Colors.grey.shade600),
-            prefixIcon: const Icon(Icons.business_outlined, color: Color(0xFF1A237E)),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(15),
-              borderSide: BorderSide.none,
-            ),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(vertical: 5, horizontal: 15),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDobPicker() {
-    return TweenAnimationBuilder(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 500),
-      builder: (context, double value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: InkWell(
-          onTap: pickDob,
-          borderRadius: BorderRadius.circular(15),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-            child: Row(
-              children: [
-                const Icon(Icons.calendar_today, color: Color(0xFF1A237E)),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Text(
-                    selectedDob == null
-                        ? "Select Date of Birth"
-                        : "DOB: ${selectedDob!.day}/${selectedDob!.month}/${selectedDob!.year}",
-                    style: TextStyle(
-                      color: selectedDob == null ? Colors.grey.shade600 : Colors.black,
-                      fontSize: 16,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ),
-                if (selectedDob != null)
-                  IconButton(
-                    icon: const Icon(Icons.clear, size: 20),
-                    onPressed: () {
-                      setState(() {
-                        selectedDob = null;
-                      });
-                    },
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSignUpButton() {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      height: 55,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: loading ? null : [
-          BoxShadow(
-            color: const Color(0xFF1A237E).withOpacity(0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: loading ? null : signup,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1A237E),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
-        ),
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          child: loading
-              ? const SizedBox(
-                  height: 24,
-                  width: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                )
-              : const Text(
-                  'Create Account',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoginLink() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Flexible(
-          child: Text(
-            'Already have an account? ',
-            style: TextStyle(color: Colors.grey.shade600),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        Flexible(
-          child: GestureDetector(
-            onTap: () {
-              Navigator.pushReplacementNamed(context, '/login');
-            },
-            child: Text(
-              'Sign In',
-              style: TextStyle(
-                color: const Color(0xFF1A237E),
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

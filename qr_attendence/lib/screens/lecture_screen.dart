@@ -115,7 +115,6 @@ class LectureScreen extends StatelessWidget {
             itemCount: lectures.length,
             itemBuilder: (context, index) {
               final lecture = lectures[index];
-              final lectureId = lecture['lectureId'];
               final subject = lecture['subject'];
               final date = lecture['date'];
               final teacherName = lecture['teacherName'];
@@ -127,7 +126,7 @@ class LectureScreen extends StatelessWidget {
                 elevation: 2,
                 child: ExpansionTile(
                   leading: CircleAvatar(
-                    backgroundColor: Colors.blue.withOpacity(0.1),
+                    backgroundColor: Colors.blue.withValues(alpha: 0.1),
                     child: const Icon(Icons.school, color: Colors.blue), // Changed from lecture to school
                   ),
                   title: Text(
