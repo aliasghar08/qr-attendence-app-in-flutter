@@ -1,19 +1,12 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'firebase_options.dart';
-import 'screens/login_screen.dart';
-import 'screens/signup_screen.dart';
-import 'theme/app_theme.dart';
+import 'package:qr_attendence/firebase_options.dart';
+import 'package:qr_attendence/screens/login_screen.dart';
+import 'package:qr_attendence/screens/signup_screen.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ),
-  );
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
@@ -26,10 +19,12 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'QR Attendance',
-      theme: AppTheme.lightTheme,
+      theme: ThemeData(primarySwatch: Colors.blue),
       initialRoute: '/login',
       routes: {
+       // '/home': (context) => const HomeScreen(),
         '/login': (context) => const LoginScreen(),
+        // '/student': (context) => const StudentScreen(),
         '/signup': (context) => const SignupScreen(),
       },
     );
