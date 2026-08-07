@@ -30,6 +30,20 @@ By leveraging dynamic, time-sensitive QR codes that refresh automatically, the s
     *   Detailed view of individual class/lecture IDs.
 *   **Student Profile:** Quick access to the student's academic profile, including Roll Number, Department, and Semester.
 
-## 💻 Tech Stack
+### 🛡️ Advanced Security & Anti-Fraud Suite
+*   **Cryptographic Tokens:** QR codes embed a time-bound SHA-256 HMAC signature and nonce with 20-second validity to completely prevent screenshot and photo sharing.
+*   **Geofencing & Anti-Spoofing:** Enforces a strict 80-meter physical radius between teacher and student. Automatically flags and blocks mock locations or GPS inaccuracies over 50 meters.
+*   **Anti-Replay Cache:** Prevents identical token instances from being scanned twice.
+*   **Cryptographic Audit Ledger:** Calculates and stores an immutable SHA-256 audit hash for every single attendance entry.
+
+### 🎨 Custom UI & Design System
+*   **"Daily Planner" Aesthetic:** A fully customized UI featuring a curated modern color palette (Slate, Indigo, Emerald) and reusable components like `PlannerCard`, `StatusPill`, and `StatMetricCard`.
+*   **Interactive Clock Time Picker:** A highly flexible scheduling dialog replacing rigid dropdowns, allowing custom start times and dynamic lecture durations (e.g., 30 mins, 45 mins, 1.5 hours).
+*   **Custom App Icon:** Uniquely generated and natively configured security-shield launcher icon for both Android and iOS.
+
+## 💻 Tech Stack & Architecture
 *   **Frontend (Web & Mobile):** Flutter / Dart
-*   **Backend & Database:** Firebase (Authentication, Cloud Firestore for real-time state management and record keeping)
+*   **Backend & Database:** Firebase (Authentication, Cloud Firestore for real-time state management and record keeping).
+*   **Self-Made Modular Services:** Lightweight custom wrappers including `LocationService` (with 45-second distance caching to prevent battery drain), `AcademicService`, `AttendanceService`, and `SecurityService`.
+*   **Rendering Optimization:** Strategic utilization of `RepaintBoundary` to isolate high-frequency scanner animations (laser lines, timers) from the widget tree to guarantee smooth performance.
+*   **Automated Verification:** Codebase statically analyzed with 0 errors, 0 warnings, and 0 lints, backed by comprehensive unit and widget testing.
