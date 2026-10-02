@@ -56,7 +56,7 @@ class SecurityService {
     final signature = payload['securitySignature'] as String?;
 
     if (lectureId == null || subject == null || date == null || timestampMs == null || nonce == null || signature == null) {
-      return SecurityValidationResult(
+      return const SecurityValidationResult(
         isValid: false,
         errorMessage: 'Malformed or untrusted QR payload format.',
       );
@@ -72,7 +72,7 @@ class SecurityService {
     );
 
     if (signature != expectedSig) {
-      return SecurityValidationResult(
+      return const SecurityValidationResult(
         isValid: false,
         errorMessage: 'Cryptographic signature mismatch. Untrusted QR origin.',
       );
@@ -92,7 +92,7 @@ class SecurityService {
     // 3. Anti-Replay Nonce Check (prevents re-scanning the same exact token instance)
     final tokenFingerprint = '$lectureId:$nonce:$timestampMs';
     if (_consumedTokens.contains(tokenFingerprint)) {
-      return SecurityValidationResult(
+      return const SecurityValidationResult(
         isValid: false,
         errorMessage: 'This QR token instance has already been processed.',
       );
@@ -116,14 +116,14 @@ class SecurityService {
     required LocationData? studentLocation,
   }) {
     if (teacherLocation == null) {
-      return SecurityValidationResult(
+      return const SecurityValidationResult(
         isValid: false,
         errorMessage: 'Faculty location unavailable for geofence verification.',
       );
     }
 
     if (studentLocation == null) {
-      return SecurityValidationResult(
+      return const SecurityValidationResult(
         isValid: false,
         errorMessage: 'Student GPS coordinates unavailable. Please enable device location.',
       );

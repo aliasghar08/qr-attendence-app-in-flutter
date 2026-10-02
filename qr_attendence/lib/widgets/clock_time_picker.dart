@@ -65,7 +65,7 @@ class _ClockTimePickerCardState extends State<ClockTimePickerCard> {
   }
 
   int _calculateDurationBetween(TimeOfDay start, TimeOfDay end) {
-    int startMins = start.hour * 60 + start.minute;
+    final int startMins = start.hour * 60 + start.minute;
     int endMins = end.hour * 60 + end.minute;
     if (endMins < startMins) {
       endMins += 24 * 60;

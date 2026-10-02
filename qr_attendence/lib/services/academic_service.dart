@@ -81,7 +81,7 @@ class AcademicService {
     }
 
     for (int i = 0; i < duration + 1; i++) {
-      int batchYear = currentYear - i;
+      final int batchYear = currentYear - i;
       uniqueBatches.add('Batch $batchYear - ${batchYear + duration}');
     }
 
