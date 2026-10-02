@@ -173,6 +173,34 @@ class _SignupScreenState extends State<SignupScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Brand Icon
+                    Center(
+                      child: Container(
+                        width: 70,
+                        height: 70,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.2),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: Image.asset(
+                            'assets/SmarRoll.jpeg',
+                            width: 70,
+                            height: 70,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ),
+
                     // Role Segmented Tabs
                     Container(
                       padding: const EdgeInsets.all(4),

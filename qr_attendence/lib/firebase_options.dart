@@ -58,18 +58,17 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCbriVE15xqPzpMdAYyXWEAa5lRayk3-w4',
-    appId: '1:771913597271:android:0916d64aa35863d5b17e12',
+    appId: '1:771913597271:android:8aaaebf53e05fa92b17e12',
     messagingSenderId: '771913597271',
     projectId: 'qr-attendence-3fe50',
     storageBucket: 'qr-attendence-3fe50.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCYbwDkl6mhhhRU2BeedELZcNlXEDIiDnQ',
-    appId: '1:771913597271:ios:822a35341c025a2bb17e12',
+    appId: '1:771913597271:ios:6818602ec990eabfb17e12',
     messagingSenderId: '771913597271',
     projectId: 'qr-attendence-3fe50',
     storageBucket: 'qr-attendence-3fe50.firebasestorage.app',
-    iosBundleId: 'com.example.qrAttendence',
+    iosBundleId: 'com.dartnexuslab.smartroll',
   );
 }

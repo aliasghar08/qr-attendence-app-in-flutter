@@ -157,22 +157,26 @@ class _LoginScreenState extends State<LoginScreen>
                       // App Icon & Brand Badge
                       Center(
                         child: Container(
-                          padding: const EdgeInsets.all(16),
+                          width: 88,
+                          height: 88,
                           decoration: BoxDecoration(
-                            gradient: AppColors.primaryGradient,
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(22),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.primary.withValues(alpha: 0.3),
-                                blurRadius: 18,
+                                color: AppColors.primary.withValues(alpha: 0.25),
+                                blurRadius: 20,
                                 offset: const Offset(0, 8),
                               ),
                             ],
                           ),
-                          child: const Icon(
-                            Icons.qr_code_scanner_rounded,
-                            size: 44,
-                            color: Colors.white,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(22),
+                            child: Image.asset(
+                              'assets/SmarRoll.jpeg',
+                              width: 88,
+                              height: 88,
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
                       ),
@@ -181,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen>
                       // Title & Subtitle
                       const Center(
                         child: Text(
-                          'QR Attendance',
+                          'Smart Roll',
                           style: TextStyle(
                             fontSize: 26,
                             fontWeight: FontWeight.w800,

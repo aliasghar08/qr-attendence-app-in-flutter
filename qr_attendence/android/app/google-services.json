@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:771913597271:android:8aaaebf53e05fa92b17e12",
+        "android_client_info": {
+          "package_name": "com.dartnexuslab.smartroll"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCbriVE15xqPzpMdAYyXWEAa5lRayk3-w4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:771913597271:android:0916d64aa35863d5b17e12",
         "android_client_info": {
           "package_name": "com.example.qr_attendence"

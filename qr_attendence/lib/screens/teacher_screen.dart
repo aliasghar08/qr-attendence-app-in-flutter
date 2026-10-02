@@ -270,7 +270,22 @@ class _TeacherScreenState extends State<TeacherScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Faculty Portal'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                'assets/SmarRoll.jpeg',
+                width: 28,
+                height: 28,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text('Faculty Portal'),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: 'Lecture History',

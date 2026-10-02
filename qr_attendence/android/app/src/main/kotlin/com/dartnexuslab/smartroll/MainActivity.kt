@@ -1,4 +1,4 @@
-package com.example.qr_attendence
+package com.dartnexuslab.smartroll
 
 import io.flutter.embedding.android.FlutterActivity
 

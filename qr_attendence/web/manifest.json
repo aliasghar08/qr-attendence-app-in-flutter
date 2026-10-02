@@ -1,11 +1,11 @@
 {
-    "name": "qr_attendence",
-    "short_name": "qr_attendence",
+    "name": "Smart Roll",
+    "short_name": "Smart Roll",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Smart Roll - Smart QR Attendance System.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
