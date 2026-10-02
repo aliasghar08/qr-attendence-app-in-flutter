@@ -17,12 +17,24 @@ class TeacherLecturesHistory extends StatefulWidget {
   State<TeacherLecturesHistory> createState() => _TeacherLecturesHistoryState();
 }
 
-class _TeacherLecturesHistoryState extends State<TeacherLecturesHistory> {
+class _TeacherLecturesHistoryState extends State<TeacherLecturesHistory>
+    with SingleTickerProviderStateMixin {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  late AnimationController _animController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    )..forward();
+  }
 
   @override
   void dispose() {
+    _animController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -266,51 +278,61 @@ class _TeacherLecturesHistoryState extends State<TeacherLecturesHistory> {
 
             return Column(
               children: [
-                // Metrics Summary Banner
+                // Metrics Summary Banner (Staggered 0.0 - 0.35)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: StatMetricCard(
-                          title: 'Total Sessions',
-                          value: '${snapshot.data?.docs.length ?? 0}',
-                          icon: Icons.class_rounded,
-                          color: AppColors.primary,
+                  child: StaggeredEntrance(
+                    controller: _animController,
+                    startInterval: 0.00,
+                    endInterval: 0.35,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: StatMetricCard(
+                            title: 'Total Sessions',
+                            value: '${snapshot.data?.docs.length ?? 0}',
+                            icon: Icons.class_rounded,
+                            color: AppColors.primary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: StatMetricCard(
-                          title: 'Faculty',
-                          value: widget.teacherName.split(' ').first,
-                          icon: Icons.verified_user_rounded,
-                          color: AppColors.secondaryDark,
-                          subtitle: 'Verified',
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: StatMetricCard(
+                            title: 'Faculty',
+                            value: widget.teacherName.split(' ').first,
+                            icon: Icons.verified_user_rounded,
+                            color: AppColors.secondaryDark,
+                            subtitle: 'Verified',
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
 
-                // Search Bar
+                // Search Bar (Staggered 0.15 - 0.40)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (val) => setState(() => _searchQuery = val.trim()),
-                    decoration: InputDecoration(
-                      hintText: 'Search by subject, batch, or date...',
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear_rounded),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() => _searchQuery = '');
-                              },
-                            )
-                          : null,
+                  child: StaggeredEntrance(
+                    controller: _animController,
+                    startInterval: 0.15,
+                    endInterval: 0.40,
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (val) => setState(() => _searchQuery = val.trim()),
+                      decoration: InputDecoration(
+                        hintText: 'Search by subject, batch, or date...',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear_rounded),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                            : null,
+                      ),
                     ),
                   ),
                 ),
@@ -351,111 +373,119 @@ class _TeacherLecturesHistoryState extends State<TeacherLecturesHistory> {
                             final batch = data['batch'] ?? '';
                             final semester = data['semester'] ?? '';
                             final status = data['status'] ?? 'completed';
+                            final start = (0.20 + (index * 0.05)).clamp(0.0, 0.70);
+                            final end = (0.45 + (index * 0.05)).clamp(0.2, 0.95);
 
-                            return PlannerCard(
-                              onTap: () => _showStudentAttendanceSheet(
-                                context,
-                                lectureId,
-                                subject,
-                                date,
-                                timeSlot,
-                              ),
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.primarySurface,
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: const Icon(
-                                          Icons.menu_book_rounded,
-                                          color: AppColors.primary,
-                                          size: 22,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              subject,
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.textPrimary,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              '$batch • $semester',
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: AppColors.textSecondary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      StatusPill(
-                                        label: status == 'active' ? 'ACTIVE' : 'SAVED',
-                                        color: status == 'active'
-                                            ? AppColors.successDark
-                                            : AppColors.secondaryDark,
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  const Divider(height: 1),
-                                  const SizedBox(height: 10),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.schedule_rounded,
-                                          size: 14, color: AppColors.textMuted),
-                                      const SizedBox(width: 6),
-                                      Expanded(
-                                        child: Text(
-                                          '$date  |  $timeSlot',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.textSecondary,
+                            return StaggeredEntrance(
+                              controller: _animController,
+                              startInterval: start,
+                              endInterval: end,
+                              child: PlannerCard(
+                                onTap: () => _showStudentAttendanceSheet(
+                                  context,
+                                  lectureId,
+                                  subject,
+                                  date,
+                                  timeSlot,
+                                ),
+                                padding: const EdgeInsets.all(16),
+                                shadows: AppColors.elevationSubtle,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primarySurface,
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: const Icon(
+                                            Icons.menu_book_rounded,
+                                            color: AppColors.primary,
+                                            size: 22,
                                           ),
                                         ),
-                                      ),
-                                      StreamBuilder<QuerySnapshot>(
-                                        stream: FirebaseFirestore.instance
-                                            .collection('attendance')
-                                            .where('lectureId', isEqualTo: lectureId)
-                                            .snapshots(),
-                                        builder: (context, attSnap) {
-                                          final count = attSnap.data?.docs.length ?? 0;
-                                          return Row(
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              const Icon(Icons.people_outline_rounded,
-                                                  size: 15, color: AppColors.primary),
-                                              const SizedBox(width: 4),
                                               Text(
-                                                '$count Students',
+                                                subject,
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: AppColors.textPrimary,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                '$batch • $semester',
                                                 style: const TextStyle(
                                                   fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: AppColors.primary,
+                                                  color: AppColors.textSecondary,
                                                 ),
                                               ),
                                             ],
-                                          );
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                          ),
+                                        ),
+                                        StatusPill(
+                                          label: status == 'active' ? 'ACTIVE' : 'SAVED',
+                                          color: status == 'active'
+                                              ? AppColors.successDark
+                                              : AppColors.secondaryDark,
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    const Divider(height: 1),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.schedule_rounded,
+                                            size: 14, color: AppColors.textMuted),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            '$date  |  $timeSlot',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                          ),
+                                        ),
+                                        StreamBuilder<QuerySnapshot>(
+                                          stream: FirebaseFirestore.instance
+                                              .collection('attendance')
+                                              .where('lectureId', isEqualTo: lectureId)
+                                              .snapshots(),
+                                          builder: (context, attSnap) {
+                                            final count = attSnap.data?.docs.length ?? 0;
+                                            return Row(
+                                              children: [
+                                                const Icon(Icons.people_outline_rounded,
+                                                    size: 15, color: AppColors.primary),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  '$count Students',
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.primary,
+                                                  ),
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             );
                           },

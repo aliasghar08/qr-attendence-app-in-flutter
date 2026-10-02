@@ -92,4 +92,55 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
+
+  // Elevation & Layered Shadows
+  static List<BoxShadow> get elevationSubtle => [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.03),
+      blurRadius: 8,
+      offset: const Offset(0, 2),
+    ),
+  ];
+
+  static List<BoxShadow> get elevationMedium => [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.05),
+      blurRadius: 16,
+      offset: const Offset(0, 4),
+    ),
+    BoxShadow(
+      color: primary.withValues(alpha: 0.03),
+      blurRadius: 20,
+      offset: const Offset(0, 8),
+    ),
+  ];
+
+  static List<BoxShadow> get elevationHigh => [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.08),
+      blurRadius: 26,
+      spreadRadius: 1,
+      offset: const Offset(0, 8),
+    ),
+    BoxShadow(
+      color: primary.withValues(alpha: 0.06),
+      blurRadius: 36,
+      offset: const Offset(0, 14),
+    ),
+  ];
+
+  static List<BoxShadow> glow(
+    Color color, {
+    double opacity = 0.25,
+    double blurRadius = 20,
+    double spreadRadius = 1,
+    Offset offset = const Offset(0, 6),
+  }) => [
+    BoxShadow(
+      color: color.withValues(alpha: opacity),
+      blurRadius: blurRadius,
+      spreadRadius: spreadRadius,
+      offset: offset,
+    ),
+  ];
 }

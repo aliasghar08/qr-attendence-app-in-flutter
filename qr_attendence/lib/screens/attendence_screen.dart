@@ -20,20 +20,26 @@ class AttendenceScreen extends StatefulWidget {
 }
 
 class _AttendenceScreenState extends State<AttendenceScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _attendanceService = AttendanceService();
   late TabController _tabController;
+  late AnimationController _animController;
   String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    )..forward();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _animController.dispose();
     super.dispose();
   }
 
@@ -109,142 +115,170 @@ class _AttendenceScreenState extends State<AttendenceScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Summary Banner Card
-                    PlannerCard(
-                      padding: const EdgeInsets.all(20),
-                      gradient: AppColors.darkHeroGradient,
-                      child: Row(
-                        children: [
-                          Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              SizedBox(
-                                width: 74,
-                                height: 74,
-                                child: CircularProgressIndicator(
-                                  value: overallRate / 100,
-                                  strokeWidth: 8,
-                                  backgroundColor: Colors.white.withValues(alpha: 0.15),
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    overallRate >= 75 ? AppColors.success : AppColors.warning,
+                    // Summary Banner Card (Staggered 0.0 - 0.35)
+                    StaggeredEntrance(
+                      controller: _animController,
+                      startInterval: 0.00,
+                      endInterval: 0.35,
+                      child: PlannerCard(
+                        padding: const EdgeInsets.all(20),
+                        gradient: AppColors.darkHeroGradient,
+                        shadows: [
+                          BoxShadow(
+                            color: AppColors.primaryDark.withValues(alpha: 0.35),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                        child: Row(
+                          children: [
+                            Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 74,
+                                  height: 74,
+                                  child: CircularProgressIndicator(
+                                    value: overallRate / 100,
+                                    strokeWidth: 8,
+                                    backgroundColor: Colors.white.withValues(alpha: 0.15),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      overallRate >= 75 ? AppColors.success : AppColors.warning,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              Text(
-                                '${overallRate.toStringAsFixed(0)}%',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Overall Attendance Rate',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
+                                Text(
+                                  '${overallRate.toStringAsFixed(0)}%',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
                                     color: Colors.white,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '$presentCount of $totalLectures sessions attended',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.white.withValues(alpha: 0.8),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                StatusPill(
-                                  label: overallRate >= 75 ? 'ELIGIBLE FOR EXAMS' : 'ATTENDANCE SHORTAGE',
-                                  color: overallRate >= 75 ? AppColors.success : AppColors.error,
-                                ),
                               ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 20),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Overall Attendance Rate',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '$presentCount of $totalLectures sessions attended',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.white.withValues(alpha: 0.8),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  StatusPill(
+                                    label: overallRate >= 75 ? 'ELIGIBLE FOR EXAMS' : 'ATTENDANCE SHORTAGE',
+                                    color: overallRate >= 75 ? AppColors.success : AppColors.error,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
 
-                    const SectionHeader(
-                      title: 'Subject Breakdown',
-                      subtitle: 'Attendance threshold required: 75%',
-                      icon: Icons.auto_graph_rounded,
+                    // Section Header (Staggered 0.15 - 0.40)
+                    StaggeredEntrance(
+                      controller: _animController,
+                      startInterval: 0.15,
+                      endInterval: 0.40,
+                      child: const SectionHeader(
+                        title: 'Subject Breakdown',
+                        subtitle: 'Attendance threshold required: 75%',
+                        icon: Icons.auto_graph_rounded,
+                      ),
                     ),
 
-                    ...subjectStats.values.map((stat) {
+                    ...subjectStats.values.toList().asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final stat = entry.value;
                       final percentage = stat.percentage;
                       final color = _getPercentageColor(percentage);
+                      final start = (0.20 + (idx * 0.08)).clamp(0.0, 0.75);
+                      final end = (0.45 + (idx * 0.08)).clamp(0.2, 0.95);
 
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: PlannerCard(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: color.withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(10),
+                        child: StaggeredEntrance(
+                          controller: _animController,
+                          startInterval: start,
+                          endInterval: end,
+                          child: PlannerCard(
+                            padding: const EdgeInsets.all(16),
+                            shadows: AppColors.elevationSubtle,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: color.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Icon(Icons.book_rounded, color: color, size: 20),
                                     ),
-                                    child: Icon(Icons.book_rounded, color: color, size: 20),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          stat.subject,
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.textPrimary,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            stat.subject,
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.textPrimary,
+                                            ),
                                           ),
-                                        ),
-                                        Text(
-                                          '${stat.present} present • ${stat.absent} absent',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: AppColors.textSecondary,
+                                          Text(
+                                            '${stat.present} present • ${stat.absent} absent',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: AppColors.textSecondary,
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  Text(
-                                    '${percentage.toStringAsFixed(1)}%',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
-                                      color: color,
+                                    Text(
+                                      '${percentage.toStringAsFixed(1)}%',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: color,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: LinearProgressIndicator(
-                                  value: percentage / 100,
-                                  minHeight: 8,
-                                  backgroundColor: AppColors.border,
-                                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                                  ],
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 12),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: LinearProgressIndicator(
+                                    value: percentage / 100,
+                                    minHeight: 8,
+                                    backgroundColor: AppColors.border,
+                                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       );
@@ -258,11 +292,16 @@ class _AttendenceScreenState extends State<AttendenceScreen>
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
-                    child: TextField(
-                      onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
-                      decoration: const InputDecoration(
-                        hintText: 'Filter timeline by subject or date...',
-                        prefixIcon: Icon(Icons.search_rounded),
+                    child: StaggeredEntrance(
+                      controller: _animController,
+                      startInterval: 0.00,
+                      endInterval: 0.30,
+                      child: TextField(
+                        onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                        decoration: const InputDecoration(
+                          hintText: 'Filter timeline by subject or date...',
+                          prefixIcon: Icon(Icons.search_rounded),
+                        ),
                       ),
                     ),
                   ),
@@ -293,79 +332,87 @@ class _AttendenceScreenState extends State<AttendenceScreen>
                           separatorBuilder: (_, _) => const SizedBox(height: 12),
                           itemBuilder: (context, index) {
                             final item = filtered[index];
+                            final start = (0.10 + (index * 0.05)).clamp(0.0, 0.70);
+                            final end = (0.35 + (index * 0.05)).clamp(0.2, 0.95);
 
-                            return PlannerCard(
-                              padding: const EdgeInsets.all(16),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.successLight,
-                                      borderRadius: BorderRadius.circular(12),
+                            return StaggeredEntrance(
+                              controller: _animController,
+                              startInterval: start,
+                              endInterval: end,
+                              child: PlannerCard(
+                                padding: const EdgeInsets.all(16),
+                                shadows: AppColors.elevationSubtle,
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.successLight,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(
+                                        Icons.check_circle_outline_rounded,
+                                        color: AppColors.successDark,
+                                        size: 22,
+                                      ),
                                     ),
-                                    child: const Icon(
-                                      Icons.check_circle_outline_rounded,
-                                      color: AppColors.successDark,
-                                      size: 22,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item.subject,
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                        if (item.teacherName.isNotEmpty) ...[
-                                          const SizedBox(height: 2),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
                                           Text(
-                                            'Instructor: ${item.teacherName}',
+                                            item.subject,
                                             style: const TextStyle(
-                                              fontSize: 12,
-                                              color: AppColors.textSecondary,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.textPrimary,
                                             ),
                                           ),
-                                        ],
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          children: [
-                                            const Icon(Icons.event_note_rounded,
-                                                size: 13, color: AppColors.textMuted),
-                                            const SizedBox(width: 4),
+                                          if (item.teacherName.isNotEmpty) ...[
+                                            const SizedBox(height: 2),
                                             Text(
-                                              '${item.date} • ${item.timeSlot}',
+                                              'Instructor: ${item.teacherName}',
                                               style: const TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
+                                                fontSize: 12,
                                                 color: AppColors.textSecondary,
                                               ),
                                             ),
                                           ],
-                                        ),
-                                      ],
+                                          const SizedBox(height: 6),
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.event_note_rounded,
+                                                  size: 13, color: AppColors.textMuted),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '${item.date} • ${item.timeSlot}',
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: AppColors.textSecondary,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  if (item.distanceMeters != null)
-                                    StatusPill(
-                                      label: '${item.distanceMeters!.toStringAsFixed(0)}m',
-                                      color: AppColors.secondaryDark,
-                                      showDot: false,
-                                      icon: Icons.near_me_rounded,
-                                    )
-                                  else
-                                    const StatusPill(
-                                      label: 'Verified',
-                                      color: AppColors.successDark,
-                                    ),
-                                ],
+                                    if (item.distanceMeters != null)
+                                      StatusPill(
+                                        label: '${item.distanceMeters!.toStringAsFixed(0)}m',
+                                        color: AppColors.secondaryDark,
+                                        showDot: false,
+                                        icon: Icons.near_me_rounded,
+                                      )
+                                    else
+                                      const StatusPill(
+                                        label: 'Verified',
+                                        color: AppColors.successDark,
+                                      ),
+                                  ],
+                                ),
                               ),
                             );
                           },

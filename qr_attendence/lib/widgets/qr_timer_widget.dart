@@ -275,13 +275,7 @@ class _DynamicLectureQRWidgetState extends State<DynamicLectureQRWidget>
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: AppColors.primary, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.08),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
+              boxShadow: AppColors.glow(AppColors.primary, blurRadius: 24, spreadRadius: 1),
             ),
             child: QrImageView(
               data: _currentPayload,

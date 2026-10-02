@@ -152,13 +152,7 @@ class _ClockTimePickerCardState extends State<ClockTimePickerCard> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: AppColors.elevationMedium,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -12,7 +12,8 @@ class SignupScreen extends StatefulWidget {
   State<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _SignupScreenState extends State<SignupScreen> {
+class _SignupScreenState extends State<SignupScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _authService = AuthService();
   final _academicService = AcademicService();
@@ -32,10 +33,17 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _isLoading = false;
   bool _isPasswordVisible = false;
 
+  late AnimationController _animController;
+
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    );
     _updateCourseList();
+    _animController.forward();
   }
 
   void _updateCourseList() {
@@ -59,6 +67,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   void dispose() {
+    _animController.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -173,45 +182,79 @@ class _SignupScreenState extends State<SignupScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Brand Icon
-                    Center(
-                      child: Container(
-                        width: 70,
-                        height: 70,
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.2),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
+                    // Brand Icon & Header (Staggered 0.0 - 0.35)
+                    StaggeredEntrance(
+                      controller: _animController,
+                      startInterval: 0.00,
+                      endInterval: 0.35,
+                      slideOffset: const Offset(0, 0.2),
+                      curve: Curves.elasticOut,
+                      child: Column(
+                        children: [
+                          Center(
+                            child: Container(
+                              width: 76,
+                              height: 76,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.primary.withValues(alpha: 0.25),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: Image.asset(
+                                  'assets/SmarRoll.jpeg',
+                                  width: 76,
+                                  height: 76,
+                                  cacheWidth: 228,
+                                  cacheHeight: 228,
+                                  filterQuality: FilterQuality.medium,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
                             ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(18),
-                          child: Image.asset(
-                            'assets/SmarRoll.jpeg',
-                            width: 70,
-                            height: 70,
-                            cacheWidth: 210,
-                            cacheHeight: 210,
-                            filterQuality: FilterQuality.medium,
-                            fit: BoxFit.cover,
                           ),
-                        ),
+                          const Text(
+                            'Create Your Account',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Join Smart Roll for automated campus attendance',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+                    const SizedBox(height: 20),
 
-                    // Role Segmented Tabs
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: AppColors.borderLight,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.border),
-                      ),
+                    // Role Segmented Tabs (Staggered 0.15 - 0.45)
+                    StaggeredEntrance(
+                      controller: _animController,
+                      startInterval: 0.15,
+                      endInterval: 0.45,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: AppColors.borderLight,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border),
+                          boxShadow: AppColors.elevationSubtle,
+                        ),
                       child: Row(
                         children: [
                           Expanded(
@@ -309,14 +352,20 @@ class _SignupScreenState extends State<SignupScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 18),
+                  ),
+                  const SizedBox(height: 18),
 
-                    // Main Details Card
-                    PlannerCard(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                    // Main Details Card (Staggered 0.30 - 0.60)
+                    StaggeredEntrance(
+                      controller: _animController,
+                      startInterval: 0.30,
+                      endInterval: 0.60,
+                      child: PlannerCard(
+                        padding: const EdgeInsets.all(20),
+                        shadows: AppColors.elevationMedium,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                           const Text(
                             'Personal & Login Details',
                             style: TextStyle(
@@ -381,11 +430,17 @@ class _SignupScreenState extends State<SignupScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
+                  ),
+                  const SizedBox(height: 16),
 
-                    // Academic Details Card
-                    PlannerCard(
+                  // Academic Details Card (Staggered 0.45 - 0.75)
+                  StaggeredEntrance(
+                    controller: _animController,
+                    startInterval: 0.45,
+                    endInterval: 0.75,
+                    child: PlannerCard(
                       padding: const EdgeInsets.all(20),
+                      shadows: AppColors.elevationMedium,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -517,17 +572,23 @@ class _SignupScreenState extends State<SignupScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                  ),
+                  const SizedBox(height: 24),
 
-                    // Submit Button
-                    PlannerButton(
+                  // Submit Button (Staggered 0.60 - 0.90)
+                  StaggeredEntrance(
+                    controller: _animController,
+                    startInterval: 0.60,
+                    endInterval: 0.90,
+                    child: PlannerButton(
                       text: 'Create Account',
                       icon: Icons.person_add_rounded,
                       isLoading: _isLoading,
                       onPressed: _handleSignup,
                     ),
-                    const SizedBox(height: 20),
-                  ],
+                  ),
+                  const SizedBox(height: 20),
+                ],
                 ),
               ),
             ),

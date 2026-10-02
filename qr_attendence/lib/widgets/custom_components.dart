@@ -9,6 +9,8 @@ class PlannerCard extends StatelessWidget {
   final Color? backgroundColor;
   final Border? border;
   final Gradient? gradient;
+  final List<BoxShadow>? shadows;
+  final BorderRadius? borderRadius;
 
   const PlannerCard({
     super.key,
@@ -19,24 +21,48 @@ class PlannerCard extends StatelessWidget {
     this.backgroundColor,
     this.border,
     this.gradient,
+    this.shadows,
+    this.borderRadius,
   });
 
   @override
   Widget build(BuildContext context) {
+    final effectiveRadius = borderRadius ?? BorderRadius.circular(20);
+    final effectiveShadows = shadows ??
+        (gradient != null
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.14),
+                  blurRadius: 26,
+                  offset: const Offset(0, 10),
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.035),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.02),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ]);
+
     Widget content = Container(
       padding: padding,
       decoration: BoxDecoration(
         color: gradient == null ? (backgroundColor ?? Colors.white) : null,
         gradient: gradient,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: effectiveRadius,
         border: border ?? Border.all(color: AppColors.border, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: effectiveShadows,
       ),
       child: child,
     );
@@ -44,10 +70,10 @@ class PlannerCard extends StatelessWidget {
     if (onTap != null) {
       content = Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: effectiveRadius,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: effectiveRadius,
           child: content,
         ),
       );
@@ -314,13 +340,7 @@ class StatMetricCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: AppColors.elevationSubtle,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,4 +450,49 @@ void showAppPrivacyPolicy(BuildContext context) {
       ],
     ),
   );
+}
+
+/// Smooth staggered entrance animation wrapper for premium layouts
+class StaggeredEntrance extends StatelessWidget {
+  final AnimationController controller;
+  final double startInterval;
+  final double endInterval;
+  final Offset slideOffset;
+  final Curve curve;
+  final Widget child;
+
+  const StaggeredEntrance({
+    super.key,
+    required this.controller,
+    required this.startInterval,
+    required this.endInterval,
+    this.slideOffset = const Offset(0, 0.12),
+    this.curve = Curves.easeOutCubic,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: controller,
+        curve: Interval(startInterval, endInterval, curve: Curves.easeIn),
+      ),
+    );
+
+    final slideAnim = Tween<Offset>(begin: slideOffset, end: Offset.zero).animate(
+      CurvedAnimation(
+        parent: controller,
+        curve: Interval(startInterval, endInterval, curve: curve),
+      ),
+    );
+
+    return FadeTransition(
+      opacity: fadeAnim,
+      child: SlideTransition(
+        position: slideAnim,
+        child: child,
+      ),
+    );
+  }
 }

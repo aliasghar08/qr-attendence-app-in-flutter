@@ -30,7 +30,7 @@ class StudentScreen extends StatefulWidget {
 }
 
 class _StudentScreenState extends State<StudentScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _locationService = LocationService();
   final _attendanceService = AttendanceService();
   final _securityService = SecurityService();
@@ -47,6 +47,7 @@ class _StudentScreenState extends State<StudentScreen>
   bool _isTorchOn = false;
 
   late AnimationController _animController;
+  late AnimationController _entranceAnimController;
   late Animation<double> _scanLineAnimation;
 
   @override
@@ -58,6 +59,11 @@ class _StudentScreenState extends State<StudentScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+
+    _entranceAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    )..forward();
 
     _scanLineAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
@@ -76,6 +82,7 @@ class _StudentScreenState extends State<StudentScreen>
   @override
   void dispose() {
     _animController.dispose();
+    _entranceAnimController.dispose();
     _scannerController.dispose();
     super.dispose();
   }
@@ -417,67 +424,63 @@ class _StudentScreenState extends State<StudentScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Student Profile Card
-              PlannerCard(
-                padding: const EdgeInsets.all(18),
-                gradient: AppColors.primaryGradient,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.15),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
-                      ),
-                      child: const Icon(
-                        Icons.school_rounded,
-                        color: Colors.white,
-                        size: 30,
-                      ),
+              // Student Profile Card (Staggered 0.0 - 0.35)
+              StaggeredEntrance(
+                controller: _entranceAnimController,
+                startInterval: 0.00,
+                endInterval: 0.35,
+                child: PlannerCard(
+                  padding: const EdgeInsets.all(18),
+                  gradient: AppColors.primaryGradient,
+                  shadows: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.32),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.userName,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Roll No: $rollNo',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Wrap(
-                            spacing: 6,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  batch,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                  ],
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.15),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
+                        ),
+                        child: const Icon(
+                          Icons.school_rounded,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.userName,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
                               ),
-                              if (semester.isNotEmpty)
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Roll No: $rollNo',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withValues(alpha: 0.9),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 6,
+                              children: [
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                   decoration: BoxDecoration(
@@ -485,249 +488,299 @@ class _StudentScreenState extends State<StudentScreen>
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
-                                    semester,
+                                    batch,
                                     style: const TextStyle(
                                       fontSize: 11,
                                       color: Colors.white,
                                     ),
                                   ),
                                 ),
-                            ],
-                          ),
-                        ],
+                                if (semester.isNotEmpty)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      semester,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
 
-              // Geotag Validation Card
-              PlannerCard(
-                padding: const EdgeInsets.all(14),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: _currentLocation != null ? AppColors.successLight : AppColors.warningLight,
-                        borderRadius: BorderRadius.circular(10),
+              // Geotag Validation Card (Staggered 0.15 - 0.45)
+              StaggeredEntrance(
+                controller: _entranceAnimController,
+                startInterval: 0.15,
+                endInterval: 0.45,
+                child: PlannerCard(
+                  padding: const EdgeInsets.all(14),
+                  shadows: AppColors.elevationSubtle,
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _currentLocation != null ? AppColors.successLight : AppColors.warningLight,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          _currentLocation != null ? Icons.location_on_rounded : Icons.location_searching_rounded,
+                          color: _currentLocation != null ? AppColors.successDark : AppColors.warning,
+                          size: 20,
+                        ),
                       ),
-                      child: Icon(
-                        _currentLocation != null ? Icons.location_on_rounded : Icons.location_searching_rounded,
-                        color: _currentLocation != null ? AppColors.successDark : AppColors.warning,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _currentLocation != null ? 'GPS Ready for Attendance' : 'Locating Device...',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          Text(
-                            _currentLocation != null ? _currentLocation!.address : 'Acquiring high accuracy coordinates',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh_rounded, size: 20, color: AppColors.primary),
-                      onPressed: () => _fetchLocation(force: true),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Scanner Viewport Card
-              PlannerCard(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Row(
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.center_focus_strong_rounded, color: AppColors.primary, size: 20),
-                            SizedBox(width: 8),
                             Text(
-                              'Live QR Scanner',
-                              style: TextStyle(
-                                fontSize: 16,
+                              _currentLocation != null ? 'GPS Ready for Attendance' : 'Locating Device...',
+                              style: const TextStyle(
+                                fontSize: 13,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.textPrimary,
                               ),
                             ),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            // Torch toggle
-                            IconButton(
-                              icon: Icon(
-                                _isTorchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
-                                color: _isTorchOn ? AppColors.warning : AppColors.textSecondary,
+                            Text(
+                              _currentLocation != null ? _currentLocation!.address : 'Acquiring high accuracy coordinates',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
                               ),
-                              onPressed: () {
-                                _scannerController.toggleTorch();
-                                setState(() => _isTorchOn = !_isTorchOn);
-                              },
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            // Switch camera
-                            IconButton(
-                              icon: const Icon(Icons.flip_camera_ios_rounded, color: AppColors.textSecondary),
-                              onPressed: () => _scannerController.switchCamera(),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Camera Viewport
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        height: 300,
-                        width: double.infinity,
-                        color: Colors.black,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            MobileScanner(
-                              controller: _scannerController,
-                              onDetect: _handleBarcodeDetected,
-                            ),
-
-                            // Scanning Viewfinder Overlay
-                            Container(
-                              width: 210,
-                              height: 210,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 2),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                            ),
-
-                            // Animated Laser Line
-                            AnimatedBuilder(
-                              animation: _scanLineAnimation,
-                              builder: (context, child) {
-                                return Positioned(
-                                  top: 45 + (_scanLineAnimation.value * 210),
-                                  child: Container(
-                                    width: 200,
-                                    height: 3,
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [Colors.transparent, AppColors.secondaryLight, Colors.transparent],
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: AppColors.secondary.withValues(alpha: 0.8),
-                                          blurRadius: 8,
-                                          spreadRadius: 1,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-
-                            if (_isProcessing)
-                              Container(
-                                color: Colors.black54,
-                                child: const Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      CircularProgressIndicator(
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                      ),
-                                      SizedBox(height: 12),
-                                      Text(
-                                        'Verifying Security & Logging...',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
                           ],
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'Live dynamic tokens expire every 20 seconds. Screenshots are rejected.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
+                      IconButton(
+                        icon: const Icon(Icons.refresh_rounded, size: 20, color: AppColors.primary),
+                        onPressed: () => _fetchLocation(force: true),
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
 
-              // View Attendance History Button
-              PlannerButton(
-                text: 'View My Attendance Stats',
-                icon: Icons.insights_rounded,
-                isOutlined: true,
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AttendenceScreen(
-                        userId: widget.userId,
-                        userName: widget.userName,
-                        userRole: 'student',
+              // Scanner Viewport Card (Staggered 0.30 - 0.65)
+              StaggeredEntrance(
+                controller: _entranceAnimController,
+                startInterval: 0.30,
+                endInterval: 0.65,
+                child: PlannerCard(
+                  padding: const EdgeInsets.all(16),
+                  shadows: AppColors.elevationMedium,
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.center_focus_strong_rounded, color: AppColors.primary, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Live QR Scanner',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              // Torch toggle
+                              IconButton(
+                                icon: Icon(
+                                  _isTorchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+                                  color: _isTorchOn ? AppColors.warning : AppColors.textSecondary,
+                                ),
+                                onPressed: () {
+                                  _scannerController.toggleTorch();
+                                  setState(() => _isTorchOn = !_isTorchOn);
+                                },
+                              ),
+                              // Switch camera
+                              IconButton(
+                                icon: const Icon(Icons.flip_camera_ios_rounded, color: AppColors.textSecondary),
+                                onPressed: () => _scannerController.switchCamera(),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Camera Viewport
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          height: 300,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.3),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              MobileScanner(
+                                controller: _scannerController,
+                                onDetect: _handleBarcodeDetected,
+                              ),
+
+                              // Scanning Viewfinder Overlay
+                              Container(
+                                width: 210,
+                                height: 210,
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2),
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primary.withValues(alpha: 0.15),
+                                      blurRadius: 15,
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // Animated Laser Line
+                              AnimatedBuilder(
+                                animation: _scanLineAnimation,
+                                builder: (context, child) {
+                                  return Positioned(
+                                    top: 45 + (_scanLineAnimation.value * 210),
+                                    child: Container(
+                                      width: 200,
+                                      height: 3,
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [Colors.transparent, AppColors.secondaryLight, Colors.transparent],
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: AppColors.secondary.withValues(alpha: 0.8),
+                                            blurRadius: 8,
+                                            spreadRadius: 1,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+
+                              if (_isProcessing)
+                                Container(
+                                  color: Colors.black54,
+                                  child: const Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        CircularProgressIndicator(
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        ),
+                                        SizedBox(height: 12),
+                                        Text(
+                                          'Verifying Security & Logging...',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Live dynamic tokens expire every 20 seconds. Screenshots are rejected.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Action Buttons & Account Deletion (Staggered 0.50 - 0.85)
+              StaggeredEntrance(
+                controller: _entranceAnimController,
+                startInterval: 0.50,
+                endInterval: 0.85,
+                child: Column(
+                  children: [
+                    PlannerButton(
+                      text: 'View My Attendance Stats',
+                      icon: Icons.insights_rounded,
+                      isOutlined: true,
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AttendenceScreen(
+                              userId: widget.userId,
+                              userName: widget.userName,
+                              userRole: 'student',
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Account Deletion & Privacy Policy Option
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: () => DeleteAccountModal.show(context),
+                        icon: const Icon(
+                          Icons.shield_outlined,
+                          size: 15,
+                          color: AppColors.textMuted,
+                        ),
+                        label: const Text(
+                          'Account Settings & Data Deletion',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textMuted,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
                       ),
                     ),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-
-              // Account Deletion & Privacy Policy Option
-              Center(
-                child: TextButton.icon(
-                  onPressed: () => DeleteAccountModal.show(context),
-                  icon: const Icon(
-                    Icons.shield_outlined,
-                    size: 15,
-                    color: AppColors.textMuted,
-                  ),
-                  label: const Text(
-                    'Account Settings & Data Deletion',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textMuted,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
+                  ],
                 ),
               ),
               const SizedBox(height: 20),
