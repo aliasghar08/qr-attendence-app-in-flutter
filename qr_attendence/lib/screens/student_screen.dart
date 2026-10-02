@@ -7,6 +7,7 @@ import '../services/attendance_service.dart';
 import '../services/security_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/custom_components.dart';
+import '../widgets/delete_account_modal.dart';
 import 'attendence_screen.dart';
 import 'login_screen.dart';
 
@@ -345,10 +346,68 @@ class _StudentScreenState extends State<StudentScreen>
               );
             },
           ),
-          IconButton(
-            tooltip: 'Sign Out',
-            icon: const Icon(Icons.logout_rounded, color: AppColors.error),
-            onPressed: _handleLogout,
+          PopupMenuButton<String>(
+            tooltip: 'Account & Settings',
+            icon: const Icon(Icons.more_vert_rounded),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 8,
+            onSelected: (value) {
+              if (value == 'privacy') {
+                showAppPrivacyPolicy(context);
+              } else if (value == 'logout') {
+                _handleLogout();
+              } else if (value == 'delete_account') {
+                DeleteAccountModal.show(context);
+              }
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'privacy',
+                child: Row(
+                  children: [
+                    Icon(Icons.privacy_tip_outlined, size: 20, color: AppColors.primary),
+                    SizedBox(width: 12),
+                    Text(
+                      'Privacy Policy',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded, size: 20, color: AppColors.textSecondary),
+                    SizedBox(width: 12),
+                    Text(
+                      'Sign Out',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'delete_account',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_forever_rounded, size: 20, color: AppColors.error),
+                    SizedBox(width: 12),
+                    Text(
+                      'Delete Account',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.error,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -648,6 +707,28 @@ class _StudentScreenState extends State<StudentScreen>
                     ),
                   );
                 },
+              ),
+              const SizedBox(height: 12),
+
+              // Account Deletion & Privacy Policy Option
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => DeleteAccountModal.show(context),
+                  icon: const Icon(
+                    Icons.shield_outlined,
+                    size: 15,
+                    color: AppColors.textMuted,
+                  ),
+                  label: const Text(
+                    'Account Settings & Data Deletion',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textMuted,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 20),
             ],

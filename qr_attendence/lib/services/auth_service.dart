@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -91,6 +92,68 @@ class AuthService {
       await _auth.signOut();
     } catch (e) {
       throw Exception('Logout failed: $e');
+    }
+  }
+
+  /// Permanently delete current user account, credentials, and institutional records
+  Future<void> deleteAccount(String password) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) {
+      throw Exception('No active authenticated user session found.');
+    }
+
+    try {
+      // 1. Re-authenticate user to satisfy Firebase security requirements
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: password,
+      );
+      await user.reauthenticateWithCredential(credential);
+
+      final uid = user.uid;
+      final firestore = FirebaseFirestore.instance;
+
+      // 2. Delete user profile from Firestore
+      await firestore.collection('users').doc(uid).delete();
+
+      // 3. Purge student attendance records if any exist
+      final attendanceSnapshots = await firestore
+          .collection('attendance')
+          .where('studentId', isEqualTo: uid)
+          .get();
+
+      if (attendanceSnapshots.docs.isNotEmpty) {
+        final batch = firestore.batch();
+        for (final doc in attendanceSnapshots.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+      }
+
+      // 4. Delete Firebase Auth user
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'wrong-password':
+        case 'invalid-credential':
+          message = 'Incorrect password. Verification failed.';
+          break;
+        case 'requires-recent-login':
+          message = 'Security timeout. Please sign out and sign back in to delete your account.';
+          break;
+        case 'too-many-requests':
+          message = 'Too many attempts. Please try again later.';
+          break;
+        case 'network-request-failed':
+          message = 'Network error. Please check your internet connection.';
+          break;
+        default:
+          message = e.message ?? 'Account deletion failed.';
+      }
+      throw Exception(message);
+    } catch (e) {
+      throw Exception('Failed to delete account: $e');
     }
   }
 }

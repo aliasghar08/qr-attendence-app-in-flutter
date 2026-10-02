@@ -73,7 +73,13 @@ All network communication is transmitted over secure, encrypted channels (HTTPS 
 ## 5. Data Retention & Account Deletion
 
 * **Retention Period**: Academic profile and attendance logs are retained for the duration of the student's or faculty member's institutional enrollment or until account deletion is requested.
-* **Account & Data Deletion**: Users may request complete deletion of their account and associated personal data at any time by contacting our support team at [dartnexuslab@gmail.com](mailto:dartnexuslab@gmail.com) with the subject line *"Account Deletion Request"*. Upon verification, all corresponding user records and profile data will be permanently purged within 30 days.
+* **In-App Self-Service Deletion**: Users can permanently delete their account, credentials, and all recorded attendance history directly from within the app at any time:
+  1. Open the **Smart Roll** app and sign into your account.
+  2. Tap the top-right menu (`⋮`) or scroll to **Account Settings & Data Deletion**.
+  3. Select **Delete Account**.
+  4. Confirm your current password to verify account ownership.
+  5. Tap **Permanently Delete**. All profile documents in Cloud Firestore, personal attendance logs, and Firebase Authentication credentials are wiped immediately and irreversibly.
+* **Email / Web Deletion Request**: Users may also request complete deletion of their account and associated personal data by emailing our support team at [dartnexuslab@gmail.com](mailto:dartnexuslab@gmail.com) with the subject line *"Account Deletion Request"*. Upon verification, all corresponding user records and profile data will be permanently purged within 30 days.
 
 ---
 

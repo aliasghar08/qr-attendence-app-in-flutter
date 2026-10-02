@@ -373,3 +373,61 @@ class StatMetricCard extends StatelessWidget {
     );
   }
 }
+
+/// Centralized in-app Privacy Policy dialog
+void showAppPrivacyPolicy(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: const Row(
+        children: [
+          Icon(Icons.privacy_tip_outlined, color: AppColors.primary),
+          SizedBox(width: 8),
+          Text(
+            'Privacy Policy',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+      content: const SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Smart Roll is committed to protecting your privacy and personal data.',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            SizedBox(height: 12),
+            Text(
+              '• Camera: Used strictly in real-time for scanning dynamic attendance QR codes. Images or video streams are never stored or uploaded.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            SizedBox(height: 8),
+            Text(
+              '• Location: Used only in foreground during attendance submission to verify physical presence inside the classroom. Background location is never accessed.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            SizedBox(height: 8),
+            Text(
+              '• Account Data: Your name, email, roll number, and department are stored securely in Google Cloud Firestore for institutional attendance tracking.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            SizedBox(height: 8),
+            Text(
+              '• Account Deletion: You can delete your account and all associated attendance data anytime in-app via the Delete Account option, or by emailing dartnexuslab@gmail.com.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Close'),
+        ),
+      ],
+    ),
+  );
+}
