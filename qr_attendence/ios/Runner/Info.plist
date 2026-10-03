@@ -66,5 +66,15 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Smart Roll requires camera access to scan attendance QR codes.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Smart Roll requires your location while using the app to verify classroom attendance presence.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Smart Roll requires your location to verify classroom attendance presence.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>UIRequiresFullScreen</key>
+	<true/>
 </dict>
 </plist>

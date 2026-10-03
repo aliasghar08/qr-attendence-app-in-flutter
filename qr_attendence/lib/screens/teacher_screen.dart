@@ -387,9 +387,12 @@ class _TeacherScreenState extends State<TeacherScreen>
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
               // Faculty Header Card (Staggered 0.0 - 0.35)
               StaggeredEntrance(
                 controller: _animController,
@@ -834,6 +837,8 @@ class _TeacherScreenState extends State<TeacherScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 }

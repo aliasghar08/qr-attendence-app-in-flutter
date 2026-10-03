@@ -276,8 +276,11 @@ class _TeacherLecturesHistoryState extends State<TeacherLecturesHistory>
               }).toList();
             }
 
-            return Column(
-              children: [
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 680),
+                child: Column(
+                  children: [
                 // Metrics Summary Banner (Staggered 0.0 - 0.35)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
@@ -492,10 +495,12 @@ class _TeacherLecturesHistoryState extends State<TeacherLecturesHistory>
                         ),
                 ),
               ],
-            );
-          },
-        ),
-      ),
-    );
-  }
+            ),
+          ),
+        );
+      },
+    ),
+  ),
+);
+}
 }

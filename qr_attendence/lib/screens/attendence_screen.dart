@@ -106,9 +106,12 @@ class _AttendenceScreenState extends State<AttendenceScreen>
             );
           }
 
-          return TabBarView(
-            controller: _tabController,
-            children: [
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: TabBarView(
+                controller: _tabController,
+                children: [
               // TAB 1: Analytics & Subject Progress
               SingleChildScrollView(
                 padding: const EdgeInsets.all(18),
@@ -423,9 +426,11 @@ class _AttendenceScreenState extends State<AttendenceScreen>
                 ],
               ),
             ],
-          );
-        },
-      ),
-    );
-  }
+          ),
+        ),
+      );
+    },
+  ),
+);
+}
 }

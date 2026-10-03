@@ -168,9 +168,12 @@ class _TeacherDashboardState extends State<TeacherDashboard>
             );
           }
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
               StaggeredEntrance(
                 controller: _animController,
                 startInterval: 0.0,
@@ -332,9 +335,11 @@ class _TeacherDashboardState extends State<TeacherDashboard>
                 );
               }),
             ],
-          );
-        },
-      ),
-    );
-  }
+          ),
+        ),
+      );
+    },
+  ),
+);
+}
 }

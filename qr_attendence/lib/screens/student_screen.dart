@@ -421,9 +421,12 @@ class _StudentScreenState extends State<StudentScreen>
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
               // Student Profile Card (Staggered 0.0 - 0.35)
               StaggeredEntrance(
                 controller: _entranceAnimController,
@@ -788,6 +791,8 @@ class _StudentScreenState extends State<StudentScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 }

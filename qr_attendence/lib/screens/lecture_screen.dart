@@ -220,9 +220,12 @@ class _LectureScreenState extends State<LectureScreen>
 
           final lectures = lecturesMap.values.toList();
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
               // Hero Summary Card
               StaggeredEntrance(
                 controller: _animController,
@@ -578,11 +581,13 @@ class _LectureScreenState extends State<LectureScreen>
                 );
               }),
             ],
-          );
-        },
-      ),
-    );
-  }
+          ),
+        ),
+      );
+    },
+  ),
+);
+}
 
   Widget _buildHeroMetric(String label, String value, IconData icon) {
     return Row(
