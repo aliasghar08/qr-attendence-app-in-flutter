@@ -1,11 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/auth_service.dart';
-import '../services/location_service.dart';
-import '../services/attendance_service.dart';
-import '../services/security_service.dart';
 import '../theme/app_colors.dart';
+import '../viewmodels/student_viewmodel.dart';
 import '../widgets/custom_components.dart';
 import '../widgets/delete_account_modal.dart';
 import 'attendence_screen.dart';
@@ -31,9 +28,7 @@ class StudentScreen extends StatefulWidget {
 
 class _StudentScreenState extends State<StudentScreen>
     with TickerProviderStateMixin {
-  final _locationService = LocationService();
-  final _attendanceService = AttendanceService();
-  final _securityService = SecurityService();
+  late final StudentViewModel _viewModel;
   final _authService = AuthService();
 
   final MobileScannerController _scannerController = MobileScannerController(
@@ -42,10 +37,6 @@ class _StudentScreenState extends State<StudentScreen>
     torchEnabled: false,
   );
 
-  LocationData? _currentLocation;
-  bool _isProcessing = false;
-  bool _isTorchOn = false;
-
   late AnimationController _animController;
   late AnimationController _entranceAnimController;
   late Animation<double> _scanLineAnimation;
@@ -53,7 +44,8 @@ class _StudentScreenState extends State<StudentScreen>
   @override
   void initState() {
     super.initState();
-    _fetchLocation();
+    _viewModel = StudentViewModel();
+    _viewModel.fetchLocation();
 
     _animController = AnimationController(
       vsync: this,
@@ -70,126 +62,45 @@ class _StudentScreenState extends State<StudentScreen>
     );
   }
 
-  Future<void> _fetchLocation({bool force = false}) async {
-    final loc = await _locationService.getCurrentLocation(forceRefresh: force);
-    if (mounted) {
-      setState(() {
-        _currentLocation = loc;
-      });
-    }
-  }
-
   @override
   void dispose() {
     _animController.dispose();
     _entranceAnimController.dispose();
     _scannerController.dispose();
+    _viewModel.dispose();
     super.dispose();
   }
 
   Future<void> _handleBarcodeDetected(BarcodeCapture capture) async {
-    if (_isProcessing) return;
+    if (_viewModel.isProcessing) return;
 
-    final List<Barcode> barcodes = capture.barcodes;
-    if (barcodes.isEmpty) return;
+    final result = await _viewModel.processBarcode(
+      capture: capture,
+      userId: widget.userId,
+      userName: widget.userName,
+      userData: widget.userData,
+    );
 
-    final String? rawValue = barcodes.first.rawValue;
-    if (rawValue == null || rawValue.isEmpty) return;
+    if (!mounted) return;
 
-    setState(() => _isProcessing = true);
-
-    try {
-      final Map<String, dynamic> data = jsonDecode(rawValue);
-      final lectureId = data['lectureId'] as String?;
-      final classId = data['classId'] as String?;
-      final subject = data['subject'] as String?;
-      final date = data['date'] as String?;
-      final timeSlot = data['timeSlot'] as String? ?? '';
-      final teacherId = data['teacherId'] as String? ?? '';
-      final teacherName = data['teacherName'] as String? ?? '';
-      final department = data['department'] as String? ?? '';
-
-      if (lectureId == null || subject == null || date == null) {
-        throw Exception('Invalid QR code format. Not a valid lecture token.');
-      }
-
-      // 1. Anti-Screenshot & Cryptographic Token Signature Validation
-      final tokenValidation = _securityService.validateQrToken(payload: data);
-      if (!tokenValidation.isValid) {
-        throw Exception(tokenValidation.errorMessage ?? 'Cryptographic verification failed.');
-      }
-
-      // 2. Check duplicate attendance
-      final alreadyAttended = await _attendanceService.hasAttendedToday(
-        studentId: widget.userId,
-        subject: subject,
-        date: date,
-      );
-
-      if (alreadyAttended) {
-        throw Exception('You have already marked attendance for $subject today ($date).');
-      }
-
-      // Teacher location from QR payload
-      LocationData? teacherLoc;
-      if (data['location'] != null) {
-        teacherLoc = LocationData.fromMap(data['location']);
-      }
-
-      // Ensure fresh student location
-      LocationData? studentLoc = _currentLocation;
-      studentLoc ??= await _locationService.getCurrentLocation(forceRefresh: true);
-
-      // 3. Strict Geofence & Anti-Spoofing Proximity Validation
-      if (teacherLoc != null && studentLoc != null) {
-        final locValidation = _securityService.validateLocationProximity(
-          teacherLocation: teacherLoc,
-          studentLocation: studentLoc,
-        );
-
-        if (!locValidation.isValid) {
-          throw Exception(locValidation.errorMessage ?? 'Geofence boundary check failed.');
-        }
-      }
-
-      // 4. Mark Attendance with Security Metadata & Cryptographic Audit Hash
-      await _attendanceService.markAttendance(
-        lectureId: lectureId,
-        classId: classId ?? '',
-        studentId: widget.userId,
-        studentName: widget.userName,
-        studentRollNo: widget.userData['rollNo'] ?? 'N/A',
-        studentBatch: widget.userData['batch'] ?? 'N/A',
-        studentCourse: widget.userData['course'] ?? 'N/A',
-        subject: subject,
-        date: date,
-        timeSlot: timeSlot,
-        teacherId: teacherId,
-        teacherName: teacherName,
-        department: department,
-        teacherLocation: teacherLoc,
-        studentLocation: studentLoc,
-        tokenAgeSeconds: tokenValidation.tokenAgeSeconds,
-      );
-
-      if (!mounted) return;
-
+    if (result.isSuccess && result.attendanceDetails != null) {
+      final details = result.attendanceDetails!;
       _showSuccessDialog(
-        subject: subject,
-        teacherName: teacherName,
-        date: date,
-        timeSlot: timeSlot,
+        subject: details['subject'] ?? '',
+        teacherName: details['teacherName'] ?? '',
+        date: details['date'] ?? '',
+        timeSlot: details['timeSlot'] ?? '',
       );
-    } catch (e) {
-      if (!mounted) return;
-      final msg = e.toString().replaceAll('Exception:', '').trim();
+    } else if (!result.isSuccess &&
+        result.errorMessage != null &&
+        result.errorMessage != 'Already processing.') {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
               const Icon(Icons.security_rounded, color: Colors.white),
               const SizedBox(width: 10),
-              Expanded(child: Text(msg)),
+              Expanded(child: Text(result.errorMessage!)),
             ],
           ),
           backgroundColor: AppColors.error,
@@ -197,11 +108,6 @@ class _StudentScreenState extends State<StudentScreen>
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
-    } finally {
-      await Future.delayed(const Duration(seconds: 2));
-      if (mounted) {
-        setState(() => _isProcessing = false);
-      }
     }
   }
 
@@ -308,12 +214,369 @@ class _StudentScreenState extends State<StudentScreen>
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildProfileCard() {
     final rollNo = widget.userData['rollNo'] ?? 'N/A';
     final batch = widget.userData['batch'] ?? 'N/A';
     final semester = widget.userData['semester'] ?? '';
 
+    return PlannerCard(
+      padding: const EdgeInsets.all(18),
+      gradient: AppColors.primaryGradient,
+      shadows: [
+        BoxShadow(
+          color: AppColors.primary.withValues(alpha: 0.32),
+          blurRadius: 18,
+          offset: const Offset(0, 8),
+        ),
+      ],
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.15),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.3),
+                width: 2,
+              ),
+            ),
+            child: const Icon(
+              Icons.school_rounded,
+              color: Colors.white,
+              size: 30,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.userName,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Roll No: $rollNo',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        batch,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    if (semester.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          semester,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGeotagCard() {
+    final location = _viewModel.currentLocation;
+    final isFetching = _viewModel.isFetchingLocation;
+
+    return PlannerCard(
+      padding: const EdgeInsets.all(14),
+      shadows: AppColors.elevationSubtle,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: location != null ? AppColors.successLight : AppColors.warningLight,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              location != null ? Icons.location_on_rounded : Icons.location_searching_rounded,
+              color: location != null ? AppColors.successDark : AppColors.warning,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  location != null ? 'GPS Ready for Attendance' : 'Locating Device...',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  location != null ? location.address : 'Acquiring high accuracy coordinates',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (isFetching)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded, size: 20, color: AppColors.primary),
+              onPressed: () => _viewModel.fetchLocation(force: true),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScannerCard({required double viewportHeight}) {
+    final isTorchOn = _viewModel.isTorchOn;
+    final isProcessing = _viewModel.isProcessing;
+
+    return PlannerCard(
+      padding: const EdgeInsets.all(16),
+      shadows: AppColors.elevationMedium,
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.center_focus_strong_rounded, color: AppColors.primary, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Live QR Scanner',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  // Torch toggle
+                  IconButton(
+                    icon: Icon(
+                      isTorchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+                      color: isTorchOn ? AppColors.warning : AppColors.textSecondary,
+                    ),
+                    onPressed: () => _viewModel.toggleTorch(_scannerController),
+                  ),
+                  // Switch camera
+                  IconButton(
+                    icon: const Icon(Icons.flip_camera_ios_rounded, color: AppColors.textSecondary),
+                    onPressed: () => _scannerController.switchCamera(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Camera Viewport
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              height: viewportHeight,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  MobileScanner(
+                    controller: _scannerController,
+                    onDetect: _handleBarcodeDetected,
+                  ),
+
+                  // Scanning Viewfinder Overlay
+                  Container(
+                    width: 220,
+                    height: 220,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 2),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.2),
+                          blurRadius: 16,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Animated Laser Line
+                  AnimatedBuilder(
+                    animation: _scanLineAnimation,
+                    builder: (context, child) {
+                      final topOffset = ((viewportHeight - 220) / 2) + (_scanLineAnimation.value * 220);
+                      return Positioned(
+                        top: topOffset.clamp(10.0, viewportHeight - 10.0),
+                        child: Container(
+                          width: 210,
+                          height: 3,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Colors.transparent, AppColors.secondaryLight, Colors.transparent],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.secondary.withValues(alpha: 0.8),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  if (isProcessing)
+                    Container(
+                      color: Colors.black54,
+                      child: const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                            SizedBox(height: 14),
+                            Text(
+                              'Verifying Security & Logging Attendance...',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Tokens refresh every 20 seconds. Point camera at the live faculty screen.',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActions() {
+    return Column(
+      children: [
+        PlannerButton(
+          text: 'View My Attendance Stats',
+          icon: Icons.insights_rounded,
+          isOutlined: true,
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AttendenceScreen(
+                  userId: widget.userId,
+                  userName: widget.userName,
+                  userRole: 'student',
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+
+        // Account Deletion & Privacy Policy Option
+        Center(
+          child: TextButton.icon(
+            onPressed: () => DeleteAccountModal.show(context),
+            icon: const Icon(
+              Icons.shield_outlined,
+              size: 15,
+              color: AppColors.textMuted,
+            ),
+            label: const Text(
+              'Account Settings & Data Deletion',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textMuted,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -419,380 +682,117 @@ class _StudentScreenState extends State<StudentScreen>
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 640),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-              // Student Profile Card (Staggered 0.0 - 0.35)
-              StaggeredEntrance(
-                controller: _entranceAnimController,
-                startInterval: 0.00,
-                endInterval: 0.35,
-                child: PlannerCard(
-                  padding: const EdgeInsets.all(18),
-                  gradient: AppColors.primaryGradient,
-                  shadows: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.32),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
+        child: ListenableBuilder(
+          listenable: _viewModel,
+          builder: (context, _) {
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final isTablet = constraints.maxWidth >= 760;
+
+                if (isTablet) {
+                  // Tablet dual-pane layout: Scanner on Left, Student Details & Telemetry on Right
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1100),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Left Pane: Scanner Viewport
+                            Expanded(
+                              flex: 6,
+                              child: StaggeredEntrance(
+                                controller: _entranceAnimController,
+                                startInterval: 0.15,
+                                endInterval: 0.60,
+                                child: _buildScannerCard(viewportHeight: 400),
+                              ),
+                            ),
+                            const SizedBox(width: 24),
+                            // Right Pane: Profile, Geofence Telemetry & Actions
+                            Expanded(
+                              flex: 5,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  StaggeredEntrance(
+                                    controller: _entranceAnimController,
+                                    startInterval: 0.00,
+                                    endInterval: 0.35,
+                                    child: _buildProfileCard(),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  StaggeredEntrance(
+                                    controller: _entranceAnimController,
+                                    startInterval: 0.10,
+                                    endInterval: 0.40,
+                                    child: _buildGeotagCard(),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  StaggeredEntrance(
+                                    controller: _entranceAnimController,
+                                    startInterval: 0.25,
+                                    endInterval: 0.65,
+                                    child: _buildActions(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ],
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withValues(alpha: 0.15),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
-                        ),
-                        child: const Icon(
-                          Icons.school_rounded,
-                          color: Colors.white,
-                          size: 30,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.userName,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Roll No: $rollNo',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white.withValues(alpha: 0.9),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Wrap(
-                              spacing: 6,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    batch,
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                                if (semester.isNotEmpty)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      semester,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
+                  );
+                }
 
-              // Geotag Validation Card (Staggered 0.15 - 0.45)
-              StaggeredEntrance(
-                controller: _entranceAnimController,
-                startInterval: 0.15,
-                endInterval: 0.45,
-                child: PlannerCard(
-                  padding: const EdgeInsets.all(14),
-                  shadows: AppColors.elevationSubtle,
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: _currentLocation != null ? AppColors.successLight : AppColors.warningLight,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          _currentLocation != null ? Icons.location_on_rounded : Icons.location_searching_rounded,
-                          color: _currentLocation != null ? AppColors.successDark : AppColors.warning,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _currentLocation != null ? 'GPS Ready for Attendance' : 'Locating Device...',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            Text(
-                              _currentLocation != null ? _currentLocation!.address : 'Acquiring high accuracy coordinates',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textSecondary,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.refresh_rounded, size: 20, color: AppColors.primary),
-                        onPressed: () => _fetchLocation(force: true),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Scanner Viewport Card (Staggered 0.30 - 0.65)
-              StaggeredEntrance(
-                controller: _entranceAnimController,
-                startInterval: 0.30,
-                endInterval: 0.65,
-                child: PlannerCard(
-                  padding: const EdgeInsets.all(16),
-                  shadows: AppColors.elevationMedium,
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                // Phone layout: Single column vertical stack
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 640),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.center_focus_strong_rounded, color: AppColors.primary, size: 20),
-                              SizedBox(width: 8),
-                              Text(
-                                'Live QR Scanner',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ],
+                          StaggeredEntrance(
+                            controller: _entranceAnimController,
+                            startInterval: 0.00,
+                            endInterval: 0.35,
+                            child: _buildProfileCard(),
                           ),
-                          Row(
-                            children: [
-                              // Torch toggle
-                              IconButton(
-                                icon: Icon(
-                                  _isTorchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
-                                  color: _isTorchOn ? AppColors.warning : AppColors.textSecondary,
-                                ),
-                                onPressed: () {
-                                  _scannerController.toggleTorch();
-                                  setState(() => _isTorchOn = !_isTorchOn);
-                                },
-                              ),
-                              // Switch camera
-                              IconButton(
-                                icon: const Icon(Icons.flip_camera_ios_rounded, color: AppColors.textSecondary),
-                                onPressed: () => _scannerController.switchCamera(),
-                              ),
-                            ],
+                          const SizedBox(height: 16),
+                          StaggeredEntrance(
+                            controller: _entranceAnimController,
+                            startInterval: 0.15,
+                            endInterval: 0.45,
+                            child: _buildGeotagCard(),
                           ),
+                          const SizedBox(height: 16),
+                          StaggeredEntrance(
+                            controller: _entranceAnimController,
+                            startInterval: 0.30,
+                            endInterval: 0.65,
+                            child: _buildScannerCard(viewportHeight: 300),
+                          ),
+                          const SizedBox(height: 16),
+                          StaggeredEntrance(
+                            controller: _entranceAnimController,
+                            startInterval: 0.50,
+                            endInterval: 0.85,
+                            child: _buildActions(),
+                          ),
+                          const SizedBox(height: 20),
                         ],
                       ),
-                      const SizedBox(height: 12),
-
-                      // Camera Viewport
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          height: 300,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: AppColors.primary.withValues(alpha: 0.3),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              MobileScanner(
-                                controller: _scannerController,
-                                onDetect: _handleBarcodeDetected,
-                              ),
-
-                              // Scanning Viewfinder Overlay
-                              Container(
-                                width: 210,
-                                height: 210,
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 2),
-                                  borderRadius: BorderRadius.circular(20),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.primary.withValues(alpha: 0.15),
-                                      blurRadius: 15,
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              // Animated Laser Line
-                              AnimatedBuilder(
-                                animation: _scanLineAnimation,
-                                builder: (context, child) {
-                                  return Positioned(
-                                    top: 45 + (_scanLineAnimation.value * 210),
-                                    child: Container(
-                                      width: 200,
-                                      height: 3,
-                                      decoration: BoxDecoration(
-                                        gradient: const LinearGradient(
-                                          colors: [Colors.transparent, AppColors.secondaryLight, Colors.transparent],
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: AppColors.secondary.withValues(alpha: 0.8),
-                                            blurRadius: 8,
-                                            spreadRadius: 1,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-
-                              if (_isProcessing)
-                                Container(
-                                  color: Colors.black54,
-                                  child: const Center(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        CircularProgressIndicator(
-                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                        ),
-                                        SizedBox(height: 12),
-                                        Text(
-                                          'Verifying Security & Logging...',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'Live dynamic tokens expire every 20 seconds. Screenshots are rejected.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Action Buttons & Account Deletion (Staggered 0.50 - 0.85)
-              StaggeredEntrance(
-                controller: _entranceAnimController,
-                startInterval: 0.50,
-                endInterval: 0.85,
-                child: Column(
-                  children: [
-                    PlannerButton(
-                      text: 'View My Attendance Stats',
-                      icon: Icons.insights_rounded,
-                      isOutlined: true,
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AttendenceScreen(
-                              userId: widget.userId,
-                              userName: widget.userName,
-                              userRole: 'student',
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Account Deletion & Privacy Policy Option
-                    Center(
-                      child: TextButton.icon(
-                        onPressed: () => DeleteAccountModal.show(context),
-                        icon: const Icon(
-                          Icons.shield_outlined,
-                          size: 15,
-                          color: AppColors.textMuted,
-                        ),
-                        label: const Text(
-                          'Account Settings & Data Deletion',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textMuted,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
+                );
+              },
+            );
+          },
         ),
       ),
-    ),
-  ),
-);
-}
+    );
+  }
 }

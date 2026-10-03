@@ -32,6 +32,119 @@ class _TeacherDashboardState extends State<TeacherDashboard>
     super.dispose();
   }
 
+  Widget _buildClassCard({
+    required String classId,
+    required Map<String, dynamic> data,
+    required int index,
+  }) {
+    final subject = data['subject'] ?? classId;
+    final teacherName = data['teacherName'] ?? 'Faculty Member';
+    final date = data['date'] ?? '';
+
+    final staggerStart = (0.15 + (index * 0.04)).clamp(0.0, 0.70);
+    final staggerEnd = (0.45 + (index * 0.04)).clamp(0.2, 0.95);
+
+    return StaggeredEntrance(
+      controller: _animController,
+      startInterval: staggerStart,
+      endInterval: staggerEnd,
+      child: PlannerCard(
+        shadows: AppColors.elevationSubtle,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => LectureScreen(
+                classId: classId,
+                className: subject,
+                teacherId: data['teacherId'] ?? '',
+                teacherName: teacherName,
+              ),
+            ),
+          );
+        },
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primarySurface,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.menu_book_rounded,
+                color: AppColors.primary,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    subject,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.person_outline_rounded,
+                        size: 14,
+                        color: AppColors.textMuted,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          teacherName,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (date.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        StatusPill(
+                          label: date,
+                          color: AppColors.primary,
+                          showDot: false,
+                          icon: Icons.calendar_today_rounded,
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -168,178 +281,108 @@ class _TeacherDashboardState extends State<TeacherDashboard>
             );
           }
 
-          return Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 680),
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-              StaggeredEntrance(
-                controller: _animController,
-                startInterval: 0.0,
-                endInterval: 0.35,
-                child: PlannerCard(
-                  gradient: AppColors.primaryGradient,
-                  shadows: AppColors.elevationMedium,
-                  child: Row(
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final isTablet = constraints.maxWidth >= 760;
+
+              return Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: isTablet ? 1100 : 680),
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(
-                          Icons.school_rounded,
-                          color: Colors.white,
-                          size: 28,
+                      StaggeredEntrance(
+                        controller: _animController,
+                        startInterval: 0.0,
+                        endInterval: 0.35,
+                        child: PlannerCard(
+                          gradient: AppColors.primaryGradient,
+                          shadows: AppColors.elevationMedium,
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(
+                                  Icons.school_rounded,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Active Class Sessions',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${classes.length} distinct attendance logs registered',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.85),
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Active Class Sessions',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
+                      const SizedBox(height: 20),
+                      if (isTablet)
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 520,
+                            mainAxisExtent: 96,
+                            crossAxisSpacing: 14,
+                            mainAxisSpacing: 14,
+                          ),
+                          itemCount: classes.length,
+                          itemBuilder: (context, index) {
+                            final classId = classes[index].id;
+                            final data = classes[index].data();
+                            return _buildClassCard(
+                              classId: classId,
+                              data: data,
+                              index: index,
+                            );
+                          },
+                        )
+                      else
+                        ...List.generate(classes.length, (index) {
+                          final classId = classes[index].id;
+                          final data = classes[index].data();
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12.0),
+                            child: _buildClassCard(
+                              classId: classId,
+                              data: data,
+                              index: index,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${classes.length} distinct attendance logs registered',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.85),
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                          );
+                        }),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              ...List.generate(classes.length, (index) {
-                final classId = classes[index].id;
-                final data = classes[index].data();
-                final subject = data['subject'] ?? classId;
-                final teacherName = data['teacherName'] ?? 'Faculty Member';
-                final date = data['date'] ?? '';
-
-                final staggerStart = (0.15 + (index * 0.05)).clamp(0.0, 0.70);
-                final staggerEnd = (0.45 + (index * 0.05)).clamp(0.2, 0.95);
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
-                  child: StaggeredEntrance(
-                    controller: _animController,
-                    startInterval: staggerStart,
-                    endInterval: staggerEnd,
-                    child: PlannerCard(
-                      shadows: AppColors.elevationSubtle,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => LectureScreen(
-                              classId: classId,
-                              className: subject,
-                              teacherId: data['teacherId'] ?? '',
-                              teacherName: teacherName,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.primarySurface,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(
-                              Icons.menu_book_rounded,
-                              color: AppColors.primary,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  subject,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.person_outline_rounded,
-                                      size: 14,
-                                      color: AppColors.textMuted,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: Text(
-                                        teacherName,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    if (date.isNotEmpty) ...[
-                                      const SizedBox(width: 8),
-                                      StatusPill(
-                                        label: date,
-                                        color: AppColors.primary,
-                                        showDot: false,
-                                        icon: Icons.calendar_today_rounded,
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.background,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.chevron_right_rounded,
-                              size: 20,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ],
-          ),
-        ),
-      );
-    },
-  ),
-);
-}
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
 }
